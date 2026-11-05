@@ -114,7 +114,15 @@ end
 
 local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
-FellowshipSync.VERSION = "3.6.1"
+-- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
+-- An unpackaged copy still says "@project-version@", so fall back to the number below.
+local FALLBACK_VERSION = "3.6.2"
+do
+    local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    local v = get and get(addonName or "FellowshipSync", "Version")
+    v = type(v) == "string" and v:match("^v?(%d+%.%d+%.?%d*)") or nil
+    FellowshipSync.VERSION = v or FALLBACK_VERSION
+end
 
 -- The 16 slots shown in the inspector (shirt and tabard are cosmetic and skipped).
 FellowshipSync.GEAR_SLOTS = {
@@ -449,7 +457,7 @@ function FellowshipSync:OnEnable()
         self:Print("Updated to v" .. self.VERSION .. ". Cached characters were reset once; log in on each alt to re-add it.")
         self.didMigrate = nil
     end
-    self:Print(L["ADDON_LOADED"] or "FellowshipSync loaded. Type /fsync to open.")
+    self:Print(string.format(L["ADDON_LOADED"] or "FellowshipSync v%s loaded. Type /fsync to open.", self.VERSION))
 end
 
 -- A different profile means different settings everywhere: reapply them all.
