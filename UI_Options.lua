@@ -1,7 +1,7 @@
 local addonName, addonTable = ...
 local FellowshipSync = addonTable.FellowshipSync
 local Options = FellowshipSync.Options
-local AceGUI = LibStub("AceGUI-3.0")
+local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
 
 
 local function IndexOf(list, value)
@@ -515,6 +515,7 @@ function Options:DrawNotifications(scroll, n, container, group)
         local guild = {
             { "fallen", "Hardcore deaths (RIP)" }, { "death", "Every death (busy!)" }, { "record", "New fastest boss kills" },
             { "prof", "Maxed professions (" .. FS.ProfMax() .. ")" }, { "rival", "Someone names me as their rival" },
+            { "notices", "Guild notices and polls from officers" }, { "events", "Guild events and 15-minute reminders" },
         }
         if FS.HAS_POINTS then table.insert(guild, 1, { "legacy", FS.POINTS.items .. " completed" }) end
         for _, o in ipairs(guild) do

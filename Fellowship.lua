@@ -296,6 +296,9 @@ function Fellowship:Book(rec)
             elseif ev.kind == "record" then add(ev.t, "Set a record: " .. tostring(ev.a) .. " in " .. W.FightTime(ev.v) .. ".") end
         end
     end
+    for _, award in ipairs(FS.Officer.AwardsFor and FS.Officer:AwardsFor(rec.fullName) or {}) do
+        add(award.t, "Received the guild award " .. W.Color(tostring(award.title), "ffd100") .. " from " .. FS.ShortName(award.author or "") .. ".")
+    end
     if rec.hc then
         add(rec.hc.t, W.Color(string.format("Fell for good at level %s in %s.", tostring(rec.hc.lvl or "?"), rec.hc.zone or "an unknown place"), "ff5555")
             .. (rec.hc.words and (' Last words: "' .. rec.hc.words .. '"') or ""))

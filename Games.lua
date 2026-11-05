@@ -145,24 +145,91 @@ function Games:TogglePaid(name)
     for _, e in ipairs(self.raffle.entrants) do if e.name == name then e.paid = not e.paid end end
 end
 
+function Games:Entrant(name)
+    for _, e in ipairs(self.raffle.entrants) do if e.name == name then return e end end
+end
+
+function Games:AddTickets(name, delta)
+    local e = self:Entrant(name)
+    if e then e.tickets = math.max(1, math.min(100, (e.tickets or 1) + delta)) end
+end
+
+function Games:RemoveEntrant(name)
+    for i, e in ipairs(self.raffle.entrants) do if e.name == name then table.remove(self.raffle.entrants, i) return end end
+end
+
+-- Prizes from the settings ("Mount, 500g, Pet"): one winner per prize.
+function Games:Prizes()
+    local list = {}
+    for prize in (self:RaffleSettings().prizes or ""):gmatch("[^,]+") do
+        prize = strtrim(prize)
+        if prize ~= "" and #list < 10 then table.insert(list, prize) end
+    end
+    if #list == 0 then list[1] = "" end
+    return list
+end
+
+-- One entry per ticket (more tickets, better odds).
 function Games:Pool()
     local s, pool = self:RaffleSettings(), {}
     for _, e in ipairs(self.raffle.entrants) do
-        if e.paid or not s.onlyPaid then table.insert(pool, e.name) end
+        if e.paid or not s.onlyPaid then
+            for _ = 1, (e.tickets or 1) do table.insert(pool, e.name) end
+        end
     end
     return pool
 end
 
--- Picks the winner now (fair random draw); the wheel animation only shows it.
-function Games:DrawWinner()
+-- Draws one winner per prize, fairly by tickets; nobody wins twice.
+function Games:DrawWinners()
     local pool = self:Pool()
     if #pool == 0 then return nil, "Nobody to draw from yet." end
-    local winner = pool[math.random(1, #pool)]
+    local remaining, winners = {}, {}
+    for i, n in ipairs(pool) do remaining[i] = n end
+    for _, prize in ipairs(self:Prizes()) do
+        if #remaining == 0 then break end
+        local name = remaining[math.random(1, #remaining)]
+        table.insert(winners, { name = name, prize = prize })
+        for i = #remaining, 1, -1 do if remaining[i] == name then table.remove(remaining, i) end end
+    end
     self.raffle.open = false
+    local players, count = {}, 0
+    for _, n in ipairs(pool) do if not players[n] then players[n] = true; count = count + 1 end end
     local history = FS.db.global.raffles
-    table.insert(history, 1, { t = time(), winner = winner, entries = #pool, keyword = self:RaffleSettings().keyword })
+    table.insert(history, 1, { t = time(), winner = winners[1].name, winners = winners, entries = #pool, players = count,
+                               keyword = self:RaffleSettings().keyword, fee = self:RaffleSettings().fee })
     for i = #history, 31, -1 do history[i] = nil end
-    return winner, pool
+    return winners, pool
+end
+
+-- Older single-winner call: the first prize's winner.
+function Games:DrawWinner()
+    local winners, pool = self:DrawWinners()
+    if not winners then return nil, pool end
+    return winners[1].name, pool, winners
+end
+
+function Games:AnnounceWinners(winners, entries)
+    if self:RaffleSettings().announce then
+        local parts = {}
+        for i, w in ipairs(winners) do
+            table.insert(parts, (w.prize ~= "" and (w.prize .. ": ") or (#winners > 1 and (i .. ". ") or "")) .. w.name)
+        end
+        FS.Notify:Announce(string.format("[FellowshipSync] Raffle winners (%d tickets): %s. Congratulations!", entries, table.concat(parts, ", ")),
+            self:Channels(), 20)
+    end
+    Toast("Raffle Drawn", winners[1].name .. (#winners > 1 and (" and " .. (#winners - 1) .. " more") or "") .. " won!",
+        "Interface\\Icons\\INV_Misc_Coin_17")
+end
+
+-- Money ledger: tickets in the wheel and how many are paid.
+function Games:Ledger()
+    local tickets, paid = 0, 0
+    for _, e in ipairs(self.raffle.entrants) do
+        tickets = tickets + (e.tickets or 1)
+        if e.paid then paid = paid + (e.tickets or 1) end
+    end
+    return tickets, paid, #self.raffle.entrants
 end
 
 function Games:AnnounceWinner(winner, entries)

@@ -2,7 +2,7 @@
 ## Title: FellowshipSync
 ## Notes: Hall of Fame, deathlog, Legacy Challenges, bestiary and faction war for your guild and friends.
 ## Author: baNteXKaa
-## Version: 3.5.0
+## Version: 3.6.1
 ## X-Curse-Project-ID: 1771950
 ## IconTexture: Interface\Icons\Achievement_GuildPerk_EverybodysFriend
 ## AddonCompartmentFunc: FellowshipSync_OnAddonCompartmentClick
@@ -26,6 +26,7 @@ Libs\HereBeDragons\HereBeDragons-2.0.lua
 Libs\HereBeDragons\HereBeDragons-Pins-2.0.lua
 
 Locales.lua
+Bootstrap.lua
 Core.lua
 Tracker.lua
 Tracker_CombatLog.lua
@@ -44,11 +45,13 @@ UI_FactionWar.lua
 UI_Chronicle.lua
 UI_Fellowship.lua
 UI_Records.lua
+UI_Guild.lua
 UI_Options.lua
 UI_Extras.lua
 Notify.lua
 Fellowship.lua
 Deathmap.lua
 Games.lua
+Officer.lua
 UI_Setup.lua
 MockData.lua

@@ -773,15 +773,32 @@ function View:BuildGames(f)
     r.repost = W.Button(r, "Announce Again", 130, 24, function() Games:AnnounceRaffle() end)
     r.repost:SetPoint("LEFT", r.toggle, "RIGHT", 6, 0)
     r.entrants = W.List(r, {
-        { label = "Ticket", width = 160 }, { label = "Paid", width = 60 }, { label = "Joined", width = 80, justify = "RIGHT" },
-    }, { noTooltip = true, emptyText = "No tickets yet. Click a name to mark it paid.",
-         onClick = function(entry) Games:TogglePaid(entry.name); self:Refresh() end })
+        { label = "Player", width = 150 }, { label = "Tickets", width = 60, justify = "RIGHT" }, { label = "Paid", width = 60 },
+        { label = "Joined", width = 70, justify = "RIGHT" },
+    }, { noTooltip = true, emptyText = "No players yet. Click a name to manage their tickets.",
+         onClick = function(entry) self.raffleSel = entry.name; self:Refresh() end })
     r.entrants.frame:SetPoint("TOPLEFT", 8, -148)
     r.entrants.frame:SetPoint("RIGHT", r, "RIGHT", -4, 0)
-    r.entrants.frame:SetHeight(170)
+    r.entrants.frame:SetHeight(120)
+    local function Sel(fn) return function() if self.raffleSel then fn(self.raffleSel) end; self:Refresh() end end
+    r.paid = W.Button(r, "Paid / Unpaid", 110, 22, Sel(function(n) Games:TogglePaid(n) end))
+    r.paid:SetPoint("TOPLEFT", 12, -274)
+    r.plus = W.Button(r, "+1 Ticket", 80, 22, Sel(function(n) Games:AddTickets(n, 1) end))
+    r.plus:SetPoint("LEFT", r.paid, "RIGHT", 4, 0)
+    r.minus = W.Button(r, "-1 Ticket", 80, 22, Sel(function(n) Games:AddTickets(n, -1) end))
+    r.minus:SetPoint("LEFT", r.plus, "RIGHT", 4, 0)
+    r.del = W.Button(r, "Remove", 70, 22, Sel(function(n) Games:RemoveEntrant(n); self.raffleSel = nil end))
+    r.del:SetPoint("LEFT", r.minus, "RIGHT", 4, 0)
+    r.ledger = W.Text(r, "GameFontHighlightSmall", "RIGHT")
+    r.ledger:SetPoint("TOPRIGHT", -12, -278)
+    r.prizes = W.Search(r, 300, "Prizes, separated by commas (one winner each)", function()
+        Games:RaffleSettings().prizes = strtrim(r.prizes:GetText() or "")
+    end)
+    r.prizes:SetPoint("TOPLEFT", 12, -302)
+    r.prizes:SetPoint("RIGHT", r, "RIGHT", -12, 0)
 
     r.wheel = W.Box(r, "accent")
-    r.wheel:SetPoint("TOPLEFT", 12, -326)
+    r.wheel:SetPoint("TOPLEFT", 12, -334)
     r.wheel:SetPoint("RIGHT", r, "RIGHT", -12, 0)
     r.wheel:SetHeight(56)
     r.wheel.name = W.Text(r.wheel, "GameFontNormalHuge", "CENTER")
@@ -789,9 +806,9 @@ function View:BuildGames(f)
     r.spin = W.Button(r, "Spin the Wheel!", 160, 28, function() self:SpinWheel() end)
     r.spin:SetPoint("TOP", r.wheel, "BOTTOM", 0, -6)
     r.history = W.List(r, {
-        { label = "Date", width = 90 }, { label = "Winner", width = 160 }, { label = "Tickets", width = 60, justify = "RIGHT" },
+        { label = "Date", width = 80 }, { label = "Winners", width = 220 }, { label = "Tickets", width = 60, justify = "RIGHT" },
     }, { noTooltip = true, emptyText = "No raffles drawn yet." })
-    r.history.frame:SetPoint("TOPLEFT", 8, -424)
+    r.history.frame:SetPoint("TOPLEFT", 8, -432)
     r.history.frame:SetPoint("BOTTOMRIGHT", -4, 8)
     self.raffleBox = r
 end
@@ -800,16 +817,20 @@ end
 function View:SpinWheel()
     local r = self.raffleBox
     if self.spinning then return end
-    local winner, pool = Games:DrawWinner()
-    if not winner then FS:Print(pool) return end
-    self.spinning = { t = 0, step = 0.04, next = 0, i = math.random(1, #pool), pool = pool, winner = winner, length = 3.5 }
+    local winners, pool = Games:DrawWinners()
+    if not winners then FS:Print(pool) return end
+    self.spinning = { t = 0, step = 0.04, next = 0, i = math.random(1, #pool), pool = pool, winners = winners, length = 3.5 }
     r.wheel:SetScript("OnUpdate", function(_, dt)
         local s = self.spinning
         s.t = s.t + dt
         if s.t >= s.length then
             r.wheel:SetScript("OnUpdate", nil)
-            r.wheel.name:SetText(W.Color(s.winner, "1eff00"))
-            Games:AnnounceWinner(s.winner, #s.pool)
+            local parts = {}
+            for i, w in ipairs(s.winners) do
+                table.insert(parts, (w.prize ~= "" and (w.prize .. ": ") or "") .. W.Color(w.name, i == 1 and "1eff00" or "ffd100"))
+            end
+            r.wheel.name:SetText(table.concat(parts, "   "))
+            Games:AnnounceWinners(s.winners, #s.pool)
             self.spinning = nil
             self:Refresh()
             return
@@ -872,20 +893,28 @@ function View:Refresh_games()
     r.toggle.text:SetText(raffle.open and "Close Raffle" or "Open Raffle")
     r.toggle:SetActive(raffle.open)
     r.repost:SetShown(raffle.open)
+    if not r.prizes:HasFocus() then r.prizes:SetText(s.prizes or "") end
     local entries = {}
     for i, e in ipairs(raffle.entrants) do
-        entries[i] = { rec = e, cells = { W.Color(e.name, "ffffff"), e.paid and W.Color("Paid", "1eff00") or W.Color("No", "888888"),
-            W.Color(date("%H:%M", e.joined), "aaaaaa") } }
+        entries[i] = { rec = e, isSelf = self.raffleSel == e.name, cells = { W.Color(e.name, "ffffff"), tostring(e.tickets or 1),
+            e.paid and W.Color("Paid", "1eff00") or W.Color("No", "888888"), W.Color(date("%H:%M", e.joined), "aaaaaa") } }
     end
     r.entrants:SetRows(entries)
+    for _, b in ipairs({ r.paid, r.plus, r.minus, r.del }) do b:SetShown(self.raffleSel ~= nil and Games:Entrant(self.raffleSel) ~= nil) end
+    local tickets, paid, players = Games:Ledger()
+    r.ledger:SetText(string.format("%d players, %d tickets, %d paid (%s each)", players, tickets, paid, s.fee or "?"))
     if not self.spinning then
-        local pool = Games:Pool()
-        r.wheel.name:SetText(#pool > 0 and W.Color(#pool .. " ticket" .. (#pool == 1 and "" or "s") .. " in the wheel", "aaaaaa")
-            or W.Color("No tickets yet", "666666"))
+        local pool, prizes = Games:Pool(), Games:Prizes()
+        r.wheel.name:SetText(#pool > 0 and W.Color(string.format("%d ticket%s in the wheel, %d prize%s", #pool, #pool == 1 and "" or "s",
+            #prizes, #prizes == 1 and "" or "s"), "aaaaaa") or W.Color("No tickets yet", "666666"))
     end
     local hist = {}
     for i, h in ipairs(FS.db.global.raffles) do
-        hist[i] = { cells = { W.Color(date("%d.%m %H:%M", h.t), "aaaaaa"), W.Color(h.winner, "1eff00"), W.Num(h.entries) } }
+        local names = {}
+        for _, w in ipairs(h.winners or { { name = h.winner, prize = "" } }) do
+            table.insert(names, (w.prize and w.prize ~= "" and (w.prize .. ": ") or "") .. tostring(w.name))
+        end
+        hist[i] = { cells = { W.Color(date("%d.%m %H:%M", h.t), "aaaaaa"), W.Color(table.concat(names, ", "), "1eff00"), W.Num(h.entries) } }
     end
     r.history:SetRows(hist)
 end

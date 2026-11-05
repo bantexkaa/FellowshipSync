@@ -209,6 +209,8 @@ function Comm:BuildPacket(rec, full, isAlt)
     end
     if privacy.shareSocial ~= false then packet.fe = rec.favEmote end
     if isAlt then packet.alt = true end
+    if not isAlt and FS.Officer.BuildPayload then packet.gd = FS.Officer:BuildPayload() end -- guild tools
+    if rec.seasons then packet.sn = rec.seasons end
 
     -- Social: bonds (top 15), rival and wagers.
     if privacy.shareSocial ~= false then
@@ -764,6 +766,21 @@ function Comm:HandleMessage(message, distribution, sender, bnetID)
     rec.isAlt = p.alt and true or nil
     chars[name] = rec
     if FS.Fellowship.CheckNamedRival then FS.Fellowship:CheckNamedRival(rec, previousRival) end
+    rec.seasons = nil
+    if type(p.sn) == "table" then
+        rec.seasons = {}
+        local n = 0
+        for id, map in pairs(p.sn) do
+            if n >= 6 then break end
+            if Str(id, 120) and type(map) == "table" then
+                local clean = {}
+                for k, v in pairs(map) do if Str(k, 30) and Num(v) then clean[Str(k, 30)] = Num(v) end end
+                rec.seasons[Str(id, 120)] = clean
+                n = n + 1
+            end
+        end
+    end
+    if p.gd and not p.alt and FS.Officer.Ingest then FS.Officer:Ingest(p.gd, name) end
 
     if type(p.ev) == "table" then
         for i = 1, math.min(#p.ev, 8) do

@@ -62,6 +62,7 @@ UI.VIEWS = {
     { label = "Chronicle",    mod = "Chronicle" },
     { label = "Fellowship",   mod = "FellowshipUI" },
     { label = "Records",      mod = "Records" },
+    { label = "Guild",        mod = "GuildUI" },
     { label = "Options",      mod = "Options" },
 }
 UI.SCOPES = {
@@ -152,7 +153,7 @@ function UI:InitializeFrame()
     for i, v in ipairs(self.VIEWS) do
         local tab = W.Button(f, v.label, tabWidth, 28, function() UI:SelectTab(i) end)
         tab:SetPoint("TOPLEFT", f, "TOPLEFT", 15 + (i - 1) * (tabWidth + 4), -42)
-        tab.text:SetFontObject(GameFontHighlight)
+        tab.text:SetFontObject(#self.VIEWS > 10 and GameFontHighlightSmall or GameFontHighlight)
         self.tabs[i] = tab
     end
 
@@ -212,6 +213,13 @@ function UI:UpdateButtons()
         self.tabConnector:SetPoint("TOPRIGHT", active, "BOTTOMRIGHT", -6, 0)
         self.tabConnector:SetColorTexture(pal.accent[1], pal.accent[2], pal.accent[3], 1)
         self.tabConnector:SetShown(not self.inspecting)
+    end
+    -- Unread guild notices show on the Guild tab.
+    for i, v in ipairs(self.VIEWS) do
+        if v.mod == "GuildUI" and self.tabs and self.tabs[i] then
+            local unread = FS.Officer.UnreadNotices and FS.Officer:UnreadNotices() or 0
+            self.tabs[i].text:SetText(unread > 0 and string.format("Guild (%d)", unread) or "Guild")
+        end
     end
 end
 

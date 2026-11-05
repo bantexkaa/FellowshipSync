@@ -457,6 +457,9 @@ function W.CharTooltip(owner, rec)
         if rec.guildName then GameTooltip:AddLine("<" .. rec.guildName .. ">", 0.25, 1, 0.25) end
         if rec.zone then GameTooltip:AddLine("Zone: " .. rec.zone, 0.8, 0.8, 0.8) end
         GameTooltip:AddLine(string.format("%s GS  -  %.1f iLvl", W.Num(rec.gs), tonumber(rec.ilvl) or 0), 0.64, 0.21, 0.93)
+        for _, award in ipairs(FS.Officer.AwardsFor and FS.Officer:AwardsFor(rec.fullName) or {}) do
+            GameTooltip:AddLine("Award: " .. tostring(award.title), 1, 0.82, 0)
+        end
         local via = rec.isMyChar and "your account" or ({ bnet = "Battle.net friend", relay = "relayed by a guildmate", guild = "guild" })[rec.via or "guild"]
         GameTooltip:AddLine("Updated " .. W.Ago(rec.lastUpdate) .. "  -  via " .. tostring(via), 0.6, 0.6, 0.6)
         if rec.version then

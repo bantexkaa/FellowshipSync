@@ -1,4 +1,5 @@
 local addonName, addonTable = ...
+if addonTable.libsMissing then return end -- Bootstrap.lua explains what's missing
 
 local FellowshipSync = LibStub("AceAddon-3.0"):NewAddon("FellowshipSync",
     "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0", "AceComm-3.0")
@@ -8,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -113,7 +114,7 @@ end
 
 local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
-FellowshipSync.VERSION = "3.5.0"
+FellowshipSync.VERSION = "3.6.1"
 
 -- The 16 slots shown in the inspector (shirt and tabard are cosmetic and skipped).
 FellowshipSync.GEAR_SLOTS = {
@@ -304,6 +305,7 @@ local defaults = {
         customWagers = {},  -- wagers this account created (stat-based or officer free-text)
         deathrolls = {},    -- deathroll history
         raffles = {},       -- raffle history
+        guildData = {},     -- guild name -> officer objects, responses, attendance, bank (see Officer.lua)
         raffleSettings = { keyword = "raffle", fee = "10g", channel = "guild", onlyPaid = false, announce = true },
         setupDone = false,  -- the first-time setup guide was completed or skipped
     },
@@ -321,6 +323,7 @@ local defaults = {
         glowToasts = true,
         glowCards = false,
         shadow = true,
+        officer = { inactiveDays = 14 },
         uiScale = 1.0,
         textSize = 12,
         bgAlpha = 0.95,
@@ -339,7 +342,7 @@ local defaults = {
                     bounty = true, wager = true, onthisday = true },
             -- Guildmates' and friends' events. boss: "first" | "all" | "off"; level: "max" | "tens" | "off"
             guild = { boss = "first", level = "max", legacy = false, fallen = true, death = false, record = true, prof = false,
-                      rival = true },
+                      rival = true, notices = true, events = true },
             versionToast = true,
             duration = 5, scale = 1.0, sound = "epic", guildSound = "quest", pauseInCombat = true, holdInInstances = true,
             point = { "TOP", 0, -150 },
@@ -435,6 +438,7 @@ function FellowshipSync:OnEnable()
     self.Tracker:Enable()
     if self.Fellowship.Enable then self.Fellowship:Enable() end
     if self.Deathmap.Enable then self.Deathmap:Enable() end
+    if self.Officer.Enable then self.Officer:Enable() end
     if self.Games.Enable then self.Games:Enable() end
     -- First time: offer the setup guide a few seconds after login.
     if not self.db.global.setupDone then

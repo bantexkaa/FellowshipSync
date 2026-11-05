@@ -589,6 +589,7 @@ function Tracker:Snapshot()
     local fav, favN = nil, 0
     for token, n in pairs(c.emoteCounts) do if n > favN then fav, favN = token, n end end
     rec.favEmote = fav
+    if FS.Officer.SeasonProgress then rec.seasons = FS.Officer:SeasonProgress(rec) end
     rec.hc = c.hc
     rec.lastUpdate = time()
     chars[key] = rec
