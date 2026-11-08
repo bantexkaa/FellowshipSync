@@ -24,7 +24,8 @@ end
 function Options:Build(parentFrame)
     if self.panel then return end
 
-    local baseFrame = CreateFrame("Frame", "FSync_OptionsContainer", parentFrame)
+    self.home = parentFrame
+    local baseFrame = CreateFrame("Frame", "FellowshipSyncOptionsContainer", parentFrame)
     baseFrame:SetAllPoints()
     baseFrame:Hide()
     self.panel = baseFrame
@@ -47,13 +48,13 @@ function Options:Build(parentFrame)
     -- otherwise it gets no height and nothing shows.
     tabGroup:SetLayout("Fill")
     tabGroup:SetTabs({
-        { text = "Cosmetics & UI", value = "cosmetics" },
-        { text = "Notifications",  value = "notify" },
-        { text = "Fellowship",     value = "fellowship" },
-        { text = "Network & Sharing", value = "network" },
-        { text = "Data Privacy",   value = "privacy" },
-        { text = "Profiles",       value = "profiles" },
-        { text = "Database Tools", value = "tools" }
+        { text = FellowshipSync.W.T("Cosmetics & UI"), value = "cosmetics" },
+        { text = FellowshipSync.W.T("Notifications"),  value = "notify" },
+        { text = FellowshipSync.W.T("Fellowship"),     value = "fellowship" },
+        { text = FellowshipSync.W.T("Network & Sharing"), value = "network" },
+        { text = FellowshipSync.W.T("Data Privacy"),   value = "privacy" },
+        { text = FellowshipSync.W.T("Profiles"),       value = "profiles" },
+        { text = FellowshipSync.W.T("Database Tools"), value = "tools" }
     })
     tabGroup:SetCallback("OnGroupSelected", function(container, _, group)
         self.currentGroup = group
@@ -68,7 +69,48 @@ function Options:Build(parentFrame)
     end)
 end
 
-function Options:Refresh() end
+-- The same options page lives in the FellowshipSync window and in Blizzard's
+-- Esc > Options > AddOns > FellowshipSync. It moves to wherever it is opened.
+function Options:AttachTo(parent)
+    if not self.panel or self.panel:GetParent() == parent then return end
+    self.panel:SetParent(parent)
+    self.panel:ClearAllPoints()
+    self.panel:SetAllPoints(parent)
+    self.root.frame:SetFrameStrata(parent:GetFrameStrata() or "HIGH")
+    self.panel:Show()
+    self:Resize()
+    self.tabGroup:SelectTab(self.currentGroup or "cosmetics")
+end
+
+-- The window's Options tab is open: bring the page back if Blizzard's settings had it.
+function Options:Refresh()
+    if self.home then self:AttachTo(self.home) end
+end
+
+function Options:RegisterBlizzard()
+    if self.blizzPanel then return end
+    local p = CreateFrame("Frame")
+    p.name = "FellowshipSync"
+    p:SetScript("OnShow", function()
+        if not FellowshipSync.UI.MainFrame then FellowshipSync.UI:InitializeFrame() end
+        self:AttachTo(p)
+    end)
+    p:SetScript("OnHide", function()
+        if not (self.home and self.panel) then return end
+        self:AttachTo(self.home)
+        local UI = FellowshipSync.UI
+        local open = UI.MainFrame and UI.MainFrame:IsShown() and UI.VIEWS[UI.currentTab] and UI.VIEWS[UI.currentTab].mod == "Options"
+        self.panel:SetShown(open and true or false)
+    end)
+    if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
+        local category = Settings.RegisterCanvasLayoutCategory(p, "FellowshipSync")
+        Settings.RegisterAddOnCategory(category)
+        self.blizzCategory = category
+    elseif InterfaceOptions_AddCategory then
+        InterfaceOptions_AddCategory(p)
+    end
+    self.blizzPanel = p
+end
 
 -- Redraws the open options page (after a profile switch the settings differ).
 function Options:Redraw()
@@ -87,14 +129,14 @@ end
 
 local function AddHeading(scroll, text)
     local h = AceGUI:Create("Heading")
-    h:SetText(text)
+    h:SetText(FellowshipSync.W.T(text))
     h:SetFullWidth(true)
     scroll:AddChild(h)
 end
 
 local function AddCheck(scroll, label, value, onChange, width)
     local cb = AceGUI:Create("CheckBox")
-    cb:SetLabel(label)
+    cb:SetLabel(FellowshipSync.W.T(label))
     if width then cb:SetWidth(width) else cb:SetFullWidth(true) end
     cb:SetValue(value and true or false)
     cb:SetCallback("OnValueChanged", function(_, _, val) onChange(val) end)
@@ -110,7 +152,7 @@ local function AddChoice(scroll, label, choices, current, onChange, width)
         if c[1] == current then index = i end
     end
     local dd = AceGUI:Create("Dropdown")
-    dd:SetLabel(label)
+    dd:SetLabel(FellowshipSync.W.T(label))
     dd:SetWidth(width or 220)
     dd:SetList(list)
     if current ~= nil then dd:SetValue(index) end -- nothing pre-selected for "copy from" / "delete"
@@ -121,7 +163,7 @@ end
 
 local function AddButton(scroll, text, width, onClick)
     local b = AceGUI:Create("Button")
-    b:SetText(text)
+    b:SetText(FellowshipSync.W.T(text))
     b:SetWidth(width or 160)
     b:SetCallback("OnClick", function() onClick(b) end)
     scroll:AddChild(b)
@@ -165,7 +207,7 @@ end
 
 local function AddLabel(scroll, text)
     local l = AceGUI:Create("Label")
-    l:SetText(text)
+    l:SetText(FellowshipSync.W.T(text))
     l:SetFullWidth(true)
     scroll:AddChild(l)
     return l
@@ -326,6 +368,8 @@ function Options:DrawGroup(container, group)
         syncGuild:SetCallback("OnValueChanged", function(_, _, val) profile.syncGuild = val end)
         scroll:AddChild(syncGuild)
 
+        AddCheck(scroll, "Show FellowshipSync stats in the game tooltip when I hover guildmates and friends", profile.unitTooltip ~= false,
+            function(v) profile.unitTooltip = v end)
         AddCheck(scroll, "Also share my other characters (their last known stats, at login and hourly)", profile.shareAlts ~= false,
             function(v) profile.shareAlts = v end)
 
@@ -494,7 +538,7 @@ function Options:DrawNotifications(scroll, n, container, group)
     AddCheck(scroll, "Show toasts (small pop-ups at the top of the screen)", n.toasts, function(v) n.toasts = v; redraw() end)
     if n.toasts then
         AddLabel(scroll, "|cffffd100Your own events|r")
-        AddChoice(scroll, "Level-ups", { { "all", "Every level" }, { "max", "Max level only" }, { "off", "Off" } },
+        AddChoice(scroll, "Level-ups", { { "tens", "Every 10 levels + max" }, { "all", "Every level" }, { "max", "Max level only" }, { "off", "Off" } },
             n.own.level, function(v) n.own.level = v end)
         local own = {
             { "boss", "First boss kills" }, { "record", "New fastest boss kills" }, { "gear", "GearScore records" },

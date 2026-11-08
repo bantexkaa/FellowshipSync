@@ -285,8 +285,8 @@ end
 
 function Extras:BuildTicker(parent)
     local bar = W.Box(parent, "header", true)
-    bar:SetPoint("BOTTOMLEFT", 15, 8)
-    bar:SetSize(720, 22)
+    bar:SetPoint("BOTTOMLEFT", 184, 8) -- right of the Share / Export buttons
+    bar:SetSize(560, 22)
     self.tickerBar = bar
     local label = W.Text(bar, "GameFontNormalSmall")
     label:SetPoint("LEFT", 8, 0)
@@ -334,5 +334,43 @@ function Extras:RefreshTicker()
         self.tickerText:SetText(text)
     elseif text ~= self.tickerText:GetText() then
         self.pendingTicker = text -- swap in after the current pass so it doesn't jump
+    end
+end
+
+---------------------------------------------------------------------------
+-- Game tooltip: a few FellowshipSync lines when hovering a known player
+---------------------------------------------------------------------------
+
+function Extras:AddUnitLines(tt)
+    if not FS.db or FS.db.profile.unitTooltip == false or not tt or not tt.GetUnit then return end
+    local _, unit = tt:GetUnit()
+    if not unit or FS.IsSecret(unit) then return end
+    local isPlayer = UnitIsPlayer(unit)
+    if FS.IsSecret(isPlayer) or not isPlayer then return end
+    local key = FS.Fellowship:MemberKey(unit)
+    local rec = key and FS.db.global.characters[key]
+    if not rec or rec.isMock or rec.isMyChar then return end
+    local nemesis, n = nil, 0
+    for name, count in pairs(rec.killers or {}) do if count > n then nemesis, n = name, count end end
+    tt:AddLine(" ")
+    tt:AddDoubleLine("|cffffd100Fellowship|rSync", string.format("%s GS  -  %s kills  -  %s deaths",
+        W.Num(rec.gs), W.Num(rec.kills), W.Num(rec.deaths)), 1, 1, 1, 0.9, 0.9, 0.9)
+    if nemesis then tt:AddDoubleLine(W.T("Nemesis"), nemesis, 0.7, 0.7, 0.7, 1, 0.4, 0.4) end
+    for _, award in ipairs(FS.Officer.AwardsFor and FS.Officer:AwardsFor(rec.fullName) or {}) do
+        tt:AddDoubleLine(W.T("Award"), tostring(award.title), 0.7, 0.7, 0.7, 1, 0.82, 0)
+        break
+    end
+    tt:Show()
+end
+
+function Extras:EnableUnitTooltip()
+    if self.unitTooltipHooked then return end
+    self.unitTooltipHooked = true
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tt)
+            if tt == GameTooltip then Extras:AddUnitLines(tt) end
+        end)
+    elseif GameTooltip and GameTooltip.HookScript and (not GameTooltip.HasScript or GameTooltip:HasScript("OnTooltipSetUnit")) then
+        GameTooltip:HookScript("OnTooltipSetUnit", function(tt) Extras:AddUnitLines(tt) end)
     end
 end

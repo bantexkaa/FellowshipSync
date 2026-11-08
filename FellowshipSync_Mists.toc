@@ -46,6 +46,7 @@ UI_Chronicle.lua
 UI_Fellowship.lua
 UI_Records.lua
 UI_Guild.lua
+Share.lua
 UI_Options.lua
 UI_Extras.lua
 Notify.lua

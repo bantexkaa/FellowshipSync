@@ -12,6 +12,7 @@ local TABS = {
     { id = "pvp",      label = "PvP" },
     { id = "social",   label = "Social" },
     { id = "habits",   label = "Habits" },
+    { id = "compare",  label = "Compare" },
 }
 local TOP = -84
 
@@ -84,11 +85,17 @@ function Records:Build(parent)
     self.zoneList.frame:SetPoint("BOTTOMRIGHT", -12, 10)
 
     self:BuildMyRecords(f)
+    self:BuildCompare(f)
 end
 
 function Records:Refresh()
     if not self.frame then return end
     self.tabs:Select(self.current, true)
+    self.cmpPage:SetShown(self.current == "compare")
+    if self.current == "compare" then
+        self.myPage:Hide(); self.zoneList.frame:Hide(); self.list.frame:Hide(); self.search:Hide()
+        return self:RefreshCompare()
+    end
     local my = self.current == "my" and UI.currentScope == "solo"
     self.myPage:SetShown(my)
     self.zoneList.frame:SetShown(self.current == "zones")
@@ -387,4 +394,98 @@ function Records:RefreshRecordsBoard(suffix)
             W.Num(r.daysPlayed), W.Num(r.bestStreak), W.Num(FS:GetValue(r, "sessions")) } }
     end
     self.list:SetRows(rows)
+end
+
+---------------------------------------------------------------------------
+-- Compare: any two characters, every stat side by side
+---------------------------------------------------------------------------
+
+function Records:BuildCompare(f)
+    local page = CreateFrame("Frame", nil, f)
+    page:SetAllPoints()
+    page:Hide()
+    self.cmpPage = page
+    local function Picker(x, side)
+        local prev = W.Button(page, "<", 26, 22, function() self:CycleCompare(side, -1) end)
+        prev:SetPoint("TOPLEFT", x, -84)
+        local label = W.Text(page, "GameFontHighlight", "CENTER")
+        label:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+        label:SetWidth(240)
+        local nextB = W.Button(page, ">", 26, 22, function() self:CycleCompare(side, 1) end)
+        nextB:SetPoint("LEFT", label, "RIGHT", 4, 0)
+        return label
+    end
+    self.cmpLabelA = Picker(14, "A")
+    self.cmpLabelB = Picker(340, "B")
+    self.cmpList = W.List(page, {
+        { label = "Stat", width = 260 }, { label = "Left", width = 200, justify = "RIGHT" },
+        { label = "Right", width = 200, justify = "RIGHT" }, { label = "Leader", width = 200, justify = "RIGHT" },
+    }, { noTooltip = true, id = "compare", emptyText = "Pick two characters with the arrows above." })
+    self.cmpList.frame:SetPoint("TOPLEFT", 14, -114)
+    self.cmpList.frame:SetPoint("BOTTOMRIGHT", -12, 10)
+end
+
+function Records:CompareCandidates()
+    local list = FS:GetScopeCharacters(UI.currentScope == "solo" and "network" or UI.currentScope)
+    table.sort(list, function(a, b) return tostring(a.fullName) < tostring(b.fullName) end)
+    return list
+end
+
+function Records:CycleCompare(side, delta)
+    local list = self:CompareCandidates()
+    if #list == 0 then return end
+    local field = side == "A" and "cmpA" or "cmpB"
+    local index = 0
+    for i, r in ipairs(list) do if r.fullName == self[field] then index = i end end
+    self[field] = list[((index - 1 + delta) % #list) + 1].fullName
+    self:Refresh()
+end
+
+function Records:RefreshCompare()
+    local chars, list = FS.db.global.characters, self:CompareCandidates()
+    if not chars[self.cmpA or ""] then self.cmpA = (FS:GetMyRecord() or list[1] or {}).fullName end
+    if not chars[self.cmpB or ""] then
+        for _, r in ipairs(list) do if r.fullName ~= self.cmpA then self.cmpB = r.fullName break end end
+    end
+    local a, b = chars[self.cmpA or ""], chars[self.cmpB or ""]
+    self.cmpLabelA:SetText(a and W.CharName(a) or "-")
+    self.cmpLabelB:SetText(b and W.CharName(b) or "-")
+    self.cmpList:SetColumnLabel(2, a and FS.ShortName(a.fullName) or "Left")
+    self.cmpList:SetColumnLabel(3, b and FS.ShortName(b.fullName) or "Right")
+    if not a or not b then
+        self.title:SetText(W.T("Compare"))
+        self.sub:SetText(W.T("Pick two characters with the arrows above."))
+        self.cmpList:SetRows({})
+        return
+    end
+    local keys = {}
+    for key in pairs(FS.STATS) do table.insert(keys, key) end
+    table.sort(keys, function(x, y) return FS.STATS[x].label < FS.STATS[y].label end)
+    local rows, wa, wb = {}, 0, 0
+    for _, key in ipairs(keys) do
+        local x, y = FS:GetValue(a, key), FS:GetValue(b, key)
+        if x ~= 0 or y ~= 0 then
+            local lower = FS.STATS[key].lower
+            local lead = (x == y) and 0 or (((x > y) ~= (lower == true)) and 1 or 2)
+            if lead == 1 then wa = wa + 1 elseif lead == 2 then wb = wb + 1 end
+            table.insert(rows, { sv = { [2] = x, [3] = y }, cells = { FS.STATS[key].label, W.FormatStat(key, x), W.FormatStat(key, y),
+                lead == 1 and W.Color(FS.ShortName(a.fullName), "1eff00") or lead == 2 and W.Color(FS.ShortName(b.fullName), "1eff00") or W.Color("-", "888888") } })
+        end
+    end
+    self.cmpList:SetRows(rows)
+    self.title:SetText(string.format("%s  %s - %s  %s", W.CharName(a), W.Color(wa, "1eff00"), W.Color(wb, "1eff00"), W.CharName(b)))
+    self.sub:SetText(string.format(W.T("Every stat side by side (%s). The number is how many stats each one leads."),
+        FS:IsWeekMode() and W.T("This Week") or W.T("All-Time")))
+end
+
+function Records:ShareText()
+    if self.current == "compare" then
+        local a, b = FS.db.global.characters[self.cmpA or ""], FS.db.global.characters[self.cmpB or ""]
+        if a and b then return W.Plain(self.title:GetText()) .. " (stats led)" end
+    elseif self.current == "my" and UI.currentScope == "solo" and self.myRec then
+        local r, rc = self.myRec, self.myRec.records or {}
+        return string.format("%s's records: longest life %s, longest session %s, %s kills in one session, best streak %s days.",
+            FS.ShortName(r.fullName), W.Plain(W.Duration(r.longestLife)), W.Plain(W.Duration(r.longestSession)),
+            W.Num(rc.killsSession), W.Num(r.bestStreak))
+    end
 end

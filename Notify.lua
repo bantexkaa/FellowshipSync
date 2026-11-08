@@ -55,7 +55,9 @@ end
 function Notify:WantOwnToast(ev)
     local own = self:Settings().own
     if ev.kind == "level" then
-        return own.level == "all" or (own.level == "max" and tonumber(ev.v) == FS:MaxLevel())
+        local v = tonumber(ev.v) or 0
+        return own.level == "all" or (own.level == "max" and v == FS:MaxLevel())
+            or (own.level == "tens" and (v % 10 == 0 or v == FS:MaxLevel()))
     end
     if ev.kind == "death" then return false end -- the game makes that clear already
     return own[ev.kind] ~= false and own[ev.kind] ~= nil

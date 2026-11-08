@@ -117,6 +117,25 @@ function UI:InitializeFrame()
     f:Hide()
     tinsert(UISpecialFrames, "FellowshipSyncMainFrame")
     self.MainFrame = f
+    -- Resizable from the bottom-right corner (never smaller than the design size).
+    local size = FS.db.profile.windowSize
+    if size and tonumber(size[1]) and tonumber(size[2]) then f:SetSize(size[1], size[2]) end
+    f:SetResizable(true)
+    if f.SetResizeBounds then f:SetResizeBounds(1040, 820, 2400, 1600)
+    elseif f.SetMinResize then f:SetMinResize(1040, 820); f:SetMaxResize(2400, 1600) end
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -3, 3)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+    grip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        FS.db.profile.windowSize = { math.floor(f:GetWidth()), math.floor(f:GetHeight()) }
+        UI:RefreshActiveTab()
+    end)
+    self.resizeGrip = grip
 
     -- Title bar: name, All-Time / This Week, scope filter, close.
     local title = W.Text(f, "GameFontHighlightLarge")
@@ -166,6 +185,11 @@ function UI:InitializeFrame()
     content:SetPoint("TOPLEFT", f, "TOPLEFT", 15, -74)
     content:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -15, 34)
     self.ContentFrame = content
+    -- Share / Export for whatever you're looking at
+    self.shareButton = W.Button(f, "Share", 80, 20, function() FS.Share:ShareCurrent() end)
+    self.shareButton:SetPoint("BOTTOMLEFT", 16, 8)
+    self.exportButton = W.Button(f, "Export", 80, 20, function() FS.Share:ExportCurrent() end)
+    self.exportButton:SetPoint("LEFT", self.shareButton, "RIGHT", 4, 0)
 
     self.statusText = W.Text(f, "GameFontDisableSmall", "RIGHT")
     self.statusText:SetPoint("BOTTOMRIGHT", -18, 12)
@@ -218,7 +242,7 @@ function UI:UpdateButtons()
     for i, v in ipairs(self.VIEWS) do
         if v.mod == "GuildUI" and self.tabs and self.tabs[i] then
             local unread = FS.Officer.UnreadNotices and FS.Officer:UnreadNotices() or 0
-            self.tabs[i].text:SetText(unread > 0 and string.format("Guild (%d)", unread) or "Guild")
+            self.tabs[i].text:SetText(unread > 0 and string.format("%s (%d)", W.T("Guild"), unread) or W.T("Guild"))
         end
     end
 end

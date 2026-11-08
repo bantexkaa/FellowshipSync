@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="FELLOWSHIPSYNC_TOGGLE" header="FELLOWSHIPSYNC" category="ADDONS">
+		FellowshipSync_Toggle()
+	</Binding>
+</Bindings>

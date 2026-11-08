@@ -106,6 +106,14 @@ function Inspector:Build(parent)
         for i, v in ipairs(UI.VIEWS) do if v.mod == "FellowshipUI" then UI:SelectTab(i) end end
     end)
     bookBtn:SetPoint("RIGHT", rivalBtn, "LEFT", -6, 0)
+    local compareBtn = W.Button(h, "Compare", 80, 22, function()
+        local R = FS.Records
+        R.cmpA, R.cmpB, R.current = (FS:GetMyRecord() or {}).fullName, self.rec and self.rec.fullName, "compare"
+        for i, v in ipairs(UI.VIEWS) do if v.mod == "Records" then UI:SelectTab(i) end end
+    end)
+    compareBtn:SetPoint("RIGHT", bookBtn, "LEFT", -6, 0)
+    local shareBtn = W.Button(h, "Share", 70, 22, function() FS.Share:Open(self:ShareText()) end)
+    shareBtn:SetPoint("RIGHT", compareBtn, "LEFT", -6, 0)
     self.gsLabel = W.Text(h, "GameFontDisableSmall", "RIGHT")
     self.gsLabel:SetPoint("TOPRIGHT", -14, -42)
     self.gsLabel:SetText(FS.HAS_POINTS and ("GEARSCORE & " .. string.upper(FS.POINTS.long)) or "GEARSCORE")
@@ -377,7 +385,7 @@ function Inspector:RefreshLegacy(rec)
                     or (ev.kind == "prof" and string.format("%s %s", tostring(ev.a), tostring(ev.v)))
                     or (ev.kind == "boss" and ("Defeated " .. tostring(ev.a)))
                     or (ev.kind == "gear" and (W.Num(ev.v) .. " GearScore"))
-                    or (ev.kind == "milestone" and (W.Num(ev.v) .. " " .. ((FS.STATS[ev.a] and FS.STATS[ev.a].label) or tostring(ev.a))))
+                    or (ev.kind == "milestone" and W.MilestoneText(ev.a, ev.v))
                 if label then table.insert(chips, { name = label, done = true }) end
             end
         end
@@ -420,4 +428,16 @@ function Inspector:RefreshLegacy(rec)
     elseif self.noChips then
         self.noChips:Hide()
     end
+end
+
+-- "Kima (60 Warrior): 12,345 kills, 47 deaths (nemesis: Hogger), 1,234 km travelled, 21d 4h played."
+function Inspector:ShareText()
+    local r = self.rec
+    if not r then return nil end
+    local nemesis, n = nil, 0
+    for name, count in pairs(r.killers or {}) do if count > n then nemesis, n = name, count end end
+    return string.format("%s (%s %s): %s GS, %s kills, %s deaths%s, %s travelled, %s played.",
+        FS.ShortName(r.fullName), tostring(r.level or "?"), W.Plain(W.ClassName(r.cls)), W.Num(r.gs), W.Num(FS:GetValue(r, "kills")),
+        W.Num(FS:GetValue(r, "deaths")), nemesis and (" (nemesis: " .. nemesis .. ")") or "",
+        W.Plain(W.Distance(FS:GetValue(r, "travelTotal"))), W.Plain(W.Duration(r.playtime)))
 end

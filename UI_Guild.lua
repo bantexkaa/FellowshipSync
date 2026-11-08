@@ -124,7 +124,8 @@ function View:Refresh_roster(p)
         local rec = byKey[Officer.Norm(m.name)]
         local seen = m.online and W.Color("Online", "1eff00") or (m.daysOff < 1 and "today" or (math.floor(m.daysOff) .. " days ago"))
         if m.daysOff >= days then seen = W.Color(seen, "ff5555") end
-        rows[i] = { cells = { tostring(i), W.Color(FS.ShortName(m.name), W.ClassHex(m.class)), m.rank or "", tostring(m.level or ""),
+        rows[i] = { sv = { [5] = m.online and -1 or m.daysOff, [6] = rec and 1 or 0, [4] = tonumber(m.level) },
+            cells = { tostring(i), W.Color(FS.ShortName(m.name), W.ClassHex(m.class)), m.rank or "", tostring(m.level or ""),
             seen, rec and W.Color(rec.version or "yes", "1eff00") or W.Color("-", "666666"),
             rec and W.Duration(FS:GetValue(rec, "playtime", "week")) or "", m.zone or "" } }
     end

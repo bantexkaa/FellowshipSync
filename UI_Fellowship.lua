@@ -918,3 +918,19 @@ function View:Refresh_games()
     end
     r.history:SetRows(hist)
 end
+
+function View:ShareText()
+    local F = FS.Fellowship
+    if self.current == "bounties" then
+        local parts = {}
+        for _, b in ipairs(F:CurrentBounties()) do
+            table.insert(parts, string.format("%s %s/%s (%d%%)", b.title, W.Plain(F:FormatBountyAmount(b.def, b.progress)),
+                W.Plain(F:FormatBountyAmount(b.def, b.target)), math.floor(math.min(1, b.progress / math.max(1, b.target)) * 100)))
+        end
+        return #parts > 0 and ("Guild bounties: " .. table.concat(parts, " | ")) or nil
+    elseif self.current == "book" and self.bookRec then
+        local deeds = F:Book(self.bookRec)
+        local d = deeds[#deeds]
+        if d then return string.format("Book of Deeds - %s, %s: %s", FS.ShortName(self.bookRec.fullName), date("%d.%m.%Y", d.t), W.Plain(d.text)) end
+    end
+end

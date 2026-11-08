@@ -220,3 +220,11 @@ function FactionWar:Refresh()
     end
     self.score:SetText(W.Color(hordeWins, "ff4444") .. "  -  " .. W.Color(allianceWins, "3399ff"))
 end
+
+function FactionWar:ShareText()
+    if not self.score then return nil end
+    local hm = self.horde and self.horde.mvp and W.Plain(self.horde.mvp:GetText() or "") or ""
+    local am = self.alliance and self.alliance.mvp and W.Plain(self.alliance.mvp:GetText() or "") or ""
+    return string.format("Faction War - Horde %s Alliance (categories led). Horde %s / Alliance %s",
+        W.Plain(self.score:GetText() or "?"), hm, am)
+end

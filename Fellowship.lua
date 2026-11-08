@@ -292,7 +292,7 @@ function Fellowship:Book(rec)
         if ev.who == rec.fullName then
             if ev.kind == "gear" then add(ev.t, "Reached " .. W.Num(ev.v) .. " GearScore.")
             elseif ev.kind == "milestone" then
-                add(ev.t, "Passed " .. W.Num(ev.v) .. " " .. ((FS.STATS[ev.a] and FS.STATS[ev.a].label) or tostring(ev.a)):lower() .. ".")
+                add(ev.t, W.MilestoneText(ev.a, ev.v):gsub("^%l", string.upper) .. ".")
             elseif ev.kind == "record" then add(ev.t, "Set a record: " .. tostring(ev.a) .. " in " .. W.FightTime(ev.v) .. ".") end
         end
     end

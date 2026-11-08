@@ -35,8 +35,16 @@ local STAT_NAMES = {
 local FALLBACK_IDS = { kills = 1197, deaths = 60, quests = 98, critters = 108 }
 local MONEY_STATS = { goldLooted = true, repairs = true }
 
-local MILESTONE_KEYS = { "jumps", "kills", "quests", "critters", "fish", "chat", "deaths" }
-local MILESTONES = { 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000 }
+-- Round-number milestones per stat: chat and jumps start at 1,000 (those come fast),
+-- distance in metres (10 km ... 5,000 km) and gold looted in copper (100g ... 100,000g).
+local COMMON = { 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000 }
+local BIG_START = { 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000 }
+local MILESTONE_SETS = {
+    { "kills", COMMON }, { "quests", COMMON }, { "critters", COMMON }, { "fish", COMMON }, { "deaths", COMMON },
+    { "jumps", BIG_START }, { "chat", BIG_START },
+    { "travelTotal", { 10000, 50000, 100000, 250000, 500000, 1000000, 2500000, 5000000 } },
+    { "goldLooted", { 1000000, 10000000, 100000000, 1000000000 } },
+}
 -- Level steps dated for Guild Firsts: the game's extra steps (Forever: the Legacy
 -- class challenges 25/45) plus max level.
 local function LevelStamps()
@@ -409,32 +417,43 @@ function Tracker:ScanProfessions()
         return (a.rank / math.max(1, a.max)) > (b.rank / math.max(1, b.max))
     end)
 
-    -- Milestones at this game's steps (Retail 25/50/75/100, Classic 75/150/225/300...). A profession
-    -- with a different maximum (Retail Archaeology: 950) uses its own quarters instead.
+    -- Milestones at fixed brackets: every 50 on Classic games (Retail: 25/50/75/100 per expansion),
+    -- the same for main and secondary professions. Retail Archaeology isn't split by expansion,
+    -- so it uses hundreds up to 950. "Maxed" is the game's real maximum, not the current cap.
     local gameSteps = FS.GAME_INFO.profSteps
+    local ARCHAEOLOGY = { 100, 200, 300, 400, 500, 600, 700, 800, 900, 950 }
     local function StepsFor(p)
-        local top = gameSteps[#gameSteps]
-        if not p.max or p.max <= 0 or p.max == top then return gameSteps end
-        return { math.floor(p.max * 0.25), math.floor(p.max * 0.5), math.floor(p.max * 0.75), p.max }
+        if FS.GAME == "retail" and (p.max or 0) > gameSteps[#gameSteps] then return ARCHAEOLOGY end
+        return gameSteps
     end
-    local known = self.db.char.profRanks
+    -- Forever's Legacy Race also looks at 150 / 225 / 300 (recorded quietly).
+    local LEGACY = FS.IS_FOREVER and { 150, 225, 300 } or {}
+    local known, firsts = self.db.char.profRanks, self.db.char.firsts
     for _, p in ipairs(list) do
         local id = p.name .. (p.tier and (" (" .. p.tier .. ")") or "")
         local before = known[id]
         local steps = StepsFor(p)
+        local top = steps[#steps]
         if before then
-            for i, th in ipairs(steps) do
+            for _, th in ipairs(steps) do
                 if before < th and p.rank >= th then
-                    FS:AddEvent({ kind = "prof", who = FS:GetPlayerKey(), a = p.name, v = th, i = p.max })
-                    local key = "prof:" .. p.name .. ":" .. th
-                    if i >= 2 and not self.db.char.firsts[key] then self.db.char.firsts[key] = time() end
+                    FS:AddEvent({ kind = "prof", who = FS:GetPlayerKey(), a = p.name, v = th, i = top })
                 end
             end
         end
         known[id] = p.rank
-        for i, th in ipairs(steps) do -- ranks reached before install: known, but no date
+        local marks = {}
+        for _, th in ipairs(steps) do if th >= 100 or th == top then marks[th] = true end end
+        for _, th in ipairs(LEGACY) do marks[th] = true end
+        for th in pairs(marks) do
             local key = "prof:" .. p.name .. ":" .. th
-            if i >= 2 and p.rank >= th and self.db.char.firsts[key] == nil then self.db.char.firsts[key] = 0 end
+            if p.rank >= th and firsts[key] == nil then
+                firsts[key] = before and before < th and time() or 0 -- reached before install: known, but no date
+            end
+        end
+        if p.rank >= top then
+            local key = "prof:" .. p.name .. ":max"
+            if firsts[key] == nil then firsts[key] = before and before < top and time() or 0 end
         end
     end
     self.professions = list
@@ -658,10 +677,11 @@ end
 function Tracker:CheckMilestones(rec)
     local c = self.db.char
     local first = not c.milestonesInit
-    for _, key in ipairs(MILESTONE_KEYS) do
-        local value = tonumber(rec[key]) or 0
+    for _, set in ipairs(MILESTONE_SETS) do
+        local key = set[1]
+        local value = FS:GetValue(rec, key, "all")
         local reached = 0
-        for _, th in ipairs(MILESTONES) do if value >= th then reached = th end end
+        for _, th in ipairs(set[2]) do if value >= th then reached = th end end
         if reached > (c.milestones[key] or 0) then
             if not first then
                 FS:AddEvent({ kind = "milestone", who = rec.fullName, a = key, v = reached })
@@ -671,12 +691,18 @@ function Tracker:CheckMilestones(rec)
     end
     if first then c.milestonesInit = true end
 
-    if (rec.gs or 0) > (c.gsBest or 0) + 5 then
-        if (c.gsBest or 0) > 0 and rec.highest then
-            FS:AddEvent({ kind = "gear", who = rec.fullName, a = rec.highest.link, v = rec.gs, i = rec.ilvl })
+    -- GearScore: a toast only at round steps, sized for each game's scale.
+    local gs = tonumber(rec.gs) or 0
+    local step = FS.GAME_INFO.gsStep or 50
+    local reached = math.floor(gs / step) * step
+    if c.gsStep == nil then c.gsStep = reached end -- start from today's GearScore, no toast
+    if reached > c.gsStep then
+        if reached > 0 and rec.highest then
+            FS:AddEvent({ kind = "gear", who = rec.fullName, a = rec.highest.link, v = reached, i = rec.ilvl })
         end
-        c.gsBest = rec.gs
+        c.gsStep = reached
     end
+    if gs > (c.gsBest or 0) then c.gsBest = gs end
 end
 
 ---------------------------------------------------------------------------

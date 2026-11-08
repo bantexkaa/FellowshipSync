@@ -9,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -39,15 +39,15 @@ local GAMES = {
     -- profSteps: profession ranks that count as milestones; the last one is "maxed".
     -- Retail professions are split per expansion (100 ranks each); Archaeology is not.
     retail  = { name = "Retail",                    achievements = true,  combatLog = false, ilvlTop = 290, maxLevel = 90,
-                splits = { 20, 40, 60, 80, 90 }, profSteps = { 25, 50, 75, 100 } },
+                splits = { 20, 40, 60, 80, 90 }, profSteps = { 25, 50, 75, 100 }, gsStep = 250 },
     forever = { name = "WoW: Forever",              achievements = true,  combatLog = false, ilvlTop = 66,  maxLevel = 60, levels = { 25, 45 },
-                splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 75, 150, 225, 300 } },
+                splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 50, 100, 150, 200, 250, 300 }, gsStep = 50 },
     era     = { name = "Classic Era",               achievements = false, combatLog = true,  ilvlTop = 66,  maxLevel = 60,
-                splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 75, 150, 225, 300 } },
+                splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 50, 100, 150, 200, 250, 300 }, gsStep = 50 },
     tbc     = { name = "TBC Anniversary",           achievements = false, combatLog = true,  ilvlTop = 141, maxLevel = 70, levels = { 60 },
-                splits = { 20, 40, 60, 65, 70 }, profSteps = { 75, 150, 225, 300, 375 } },
+                splits = { 20, 40, 60, 65, 70 }, profSteps = { 50, 100, 150, 200, 250, 300, 350, 375 }, gsStep = 100 },
     mists   = { name = "Mists of Pandaria Classic", achievements = true,  combatLog = true,  ilvlTop = 496, maxLevel = 90, levels = { 85 },
-                splits = { 20, 40, 60, 80, 85, 90 }, profSteps = { 75, 150, 225, 300, 375, 450, 525, 600 } },
+                splits = { 20, 40, 60, 80, 85, 90 }, profSteps = { 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600 }, gsStep = 250 },
 }
 FellowshipSync.GAME = DetectGame()
 FellowshipSync.GAME_INFO = GAMES[FellowshipSync.GAME]
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.6.2"
+local FALLBACK_VERSION = "3.7.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -313,7 +313,8 @@ local defaults = {
         customWagers = {},  -- wagers this account created (stat-based or officer free-text)
         deathrolls = {},    -- deathroll history
         raffles = {},       -- raffle history
-        guildData = {},     -- guild name -> officer objects, responses, attendance, bank (see Officer.lua)
+        guildData = {},
+        listSort = {},      -- list id -> { col, desc } (sorting is remembered)     -- guild name -> officer objects, responses, attendance, bank (see Officer.lua)
         raffleSettings = { keyword = "raffle", fee = "10g", channel = "guild", onlyPaid = false, announce = true },
         setupDone = false,  -- the first-time setup guide was completed or skipped
     },
@@ -332,6 +333,8 @@ local defaults = {
         glowCards = false,
         shadow = true,
         officer = { inactiveDays = 14 },
+        share = { channel = "guild", prefix = true },
+        unitTooltip = true,            -- guildmates' stats in the game tooltip
         uiScale = 1.0,
         textSize = 12,
         bgAlpha = 0.95,
@@ -346,7 +349,7 @@ local defaults = {
         notify = {
             toasts = true,
             -- Your own events. level: "all" | "max" | "off"
-            own = { level = "all", legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
+            own = { level = "tens", legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
                     bounty = true, wager = true, onthisday = true },
             -- Guildmates' and friends' events. boss: "first" | "all" | "off"; level: "max" | "tens" | "off"
             guild = { boss = "first", level = "max", legacy = false, fallen = true, death = false, record = true, prof = false,
@@ -447,6 +450,9 @@ function FellowshipSync:OnEnable()
     if self.Fellowship.Enable then self.Fellowship:Enable() end
     if self.Deathmap.Enable then self.Deathmap:Enable() end
     if self.Officer.Enable then self.Officer:Enable() end
+    if self.Options.RegisterBlizzard then self.Options:RegisterBlizzard() end
+    if self.Extras.EnableUnitTooltip then self.Extras:EnableUnitTooltip() end
+    self:ScheduleTimer(function() if not InCombatLockdown() then self.Share:CheckWhatsNew() end end, 12)
     if self.Games.Enable then self.Games:Enable() end
     -- First time: offer the setup guide a few seconds after login.
     if not self.db.global.setupDone then
@@ -756,3 +762,8 @@ function FellowshipSync:ClearMockData()
     self:Print(string.format("Removed %d test characters.", removed))
     self:RefreshUIIfShown()
 end
+
+-- Key binding (Esc > Options > Key Bindings > AddOns) and the toggle it calls.
+BINDING_HEADER_FELLOWSHIPSYNC = "FellowshipSync"
+BINDING_NAME_FELLOWSHIPSYNC_TOGGLE = "Open / close FellowshipSync"
+function FellowshipSync_Toggle() FellowshipSync:ToggleUI() end

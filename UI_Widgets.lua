@@ -1,6 +1,8 @@
 local addonName, addonTable = ...
 local FS = addonTable.FellowshipSync
 local W = FS.W
+local function T(text) return (addonTable.T and type(text) == "string") and addonTable.T(text) or text end
+W.T = T
 
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 W.FLAT = { bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 }
@@ -323,7 +325,7 @@ function W.Button(parent, label, width, height, onClick)
     b.text = W.Text(b, "GameFontNormalSmall", "CENTER")
     b.text:SetPoint("LEFT", 4, 0)
     b.text:SetPoint("RIGHT", -4, 0)
-    b.text:SetText(label)
+    b.text:SetText(T(label))
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
     hl:SetColorTexture(1, 1, 1, 0.06)
@@ -395,7 +397,7 @@ function W.Check(parent, label, onToggle)
     cb:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
     cb.label = W.Text(cb, "GameFontHighlightSmall")
     cb.label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-    cb.label:SetText(label)
+    cb.label:SetText(T(label))
     cb:SetScript("OnClick", function(self) if onToggle then onToggle(self:GetChecked() and true or false) end end)
     return cb
 end
@@ -495,9 +497,22 @@ function W.List(parent, columns, opts)
         local fs = W.Text(header, "GameFontNormalSmall", col.justify)
         fs:SetPoint("LEFT", header, "LEFT", x, 0)
         fs:SetWidth(col.width)
-        fs:SetText(col.label)
+        fs:SetText(T(col.label))
         col.headerText = fs
+        -- Click a header to sort (not "#" or unlabeled columns).
+        if col.label ~= "#" and col.label ~= "" and not opts.noSort then
+            local b = CreateFrame("Button", nil, header)
+            b:SetHeight(24)
+            b:SetScript("OnClick", function() list:ToggleSort(_) end)
+            col.sortButton = b
+            col.arrow = header:CreateTexture(nil, "OVERLAY")
+            col.arrow:SetSize(12, 12)
+            col.arrow:Hide()
+        end
         x = x + col.width + 8
+    end
+    for c, col in ipairs(columns) do
+        if col.sortButton then col.sortButton:SetScript("OnClick", function() list:ToggleSort(c) end) end
     end
 
     local scroll, content = W.ScrollArea(frame)
@@ -534,9 +549,70 @@ function W.List(parent, columns, opts)
                 fs:SetWidth(self.columns[c].width)
             end
         end
+        self:PlaceHeaders()
     end
 
-    function list:SetColumnLabel(i, text) if self.columns[i] then self.columns[i].headerText:SetText(text) end end
+    function list:PlaceHeaders()
+        local state = self:SortState()
+        for c, col in ipairs(self.columns) do
+            if col.sortButton then
+                col.sortButton:ClearAllPoints()
+                col.sortButton:SetPoint("LEFT", header, "LEFT", col.x, 0)
+                col.sortButton:SetWidth(math.max(10, col.width))
+                local active = state and state.col == c
+                col.arrow:SetShown(active and true or false)
+                if active then
+                    col.arrow:SetTexture(state.desc and "Interface\\Buttons\\Arrow-Down-Up" or "Interface\\Buttons\\Arrow-Up-Up")
+                    col.arrow:ClearAllPoints()
+                    if col.justify == "RIGHT" then col.arrow:SetPoint("RIGHT", header, "LEFT", col.x - 1, 0)
+                    else col.arrow:SetPoint("LEFT", header, "LEFT", col.x + math.min(col.width, (col.headerText:GetStringWidth() or 40) + 2), 0) end
+                end
+            end
+        end
+    end
+
+    function list:SetColumnLabel(i, text) if self.columns[i] then self.columns[i].headerText:SetText(T(text)) end end
+
+    -- Sorting: the choice is saved per list (account-wide) and survives reloads.
+    list.id = opts.id or (function()
+        local ids = {}
+        for _, col in ipairs(columns) do table.insert(ids, col.label) end
+        return table.concat(ids, "|")
+    end)()
+    function list:SortState()
+        local all = FS.db and FS.db.global.listSort
+        return all and all[self.id]
+    end
+    function list:ToggleSort(c)
+        local all = FS.db.global.listSort
+        local st = all[self.id]
+        if st and st.col == c then
+            st.desc = not st.desc
+        else
+            -- numbers start biggest-first, text A-Z
+            local sample = self.lastRows and self.lastRows[1] and self.lastRows[1].cells[c]
+            all[self.id] = { col = c, desc = type(W.SortValue(sample)) == "number" }
+        end
+        if self.lastRows then self:SetRows(self.lastRows) end
+    end
+    function list:ClearSort() FS.db.global.listSort[self.id] = nil; if self.lastRows then self:SetRows(self.lastRows) end end
+
+    -- "Top 3" line for sharing: names and the sorted (or first value) column.
+    function list:TopLine(count, title)
+        local rows = self.shownRows or {}
+        if #rows == 0 then return nil end
+        local st = self:SortState()
+        local nameCol = (self.columns[1].label == "#") and 2 or 1
+        local valueCol = (st and st.col ~= nameCol) and st.col or (nameCol + 1)
+        local parts = {}
+        for i = 1, math.min(count or 3, #rows) do
+            local name = W.Plain(rows[i].cells[nameCol]):gsub("%s+%(.-%)$", "")
+            local value = W.Plain(rows[i].cells[valueCol] or "")
+            table.insert(parts, string.format("%d. %s %s", i, name, value))
+        end
+        local label = self.columns[valueCol] and W.Plain(self.columns[valueCol].headerText:GetText() or "") or ""
+        return string.format("%s%s: %s", W.Plain(title or ""), label ~= "" and (" (" .. label .. ")") or "", table.concat(parts, " - "))
+    end
 
     local function MakeRow(i)
         local row = CreateFrame("Button", nil, content, "BackdropTemplate")
@@ -577,6 +653,39 @@ function W.List(parent, columns, opts)
     end
 
     function list:SetRows(rows)
+        self.lastRows = rows
+        local st = self:SortState()
+        if st and self.columns[st.col] then
+            local keyed = {}
+            for i, data in ipairs(rows) do
+                local v = data.sv and data.sv[st.col]
+                if v == nil then v = W.SortValue(data.cells[st.col]) end
+                local nameCol = (self.columns[1].label == "#") and 2 or 1
+                keyed[i] = { data = data, v = v, name = W.Plain(data.cells[nameCol]):lower(), i = i }
+            end
+            table.sort(keyed, function(a, b)
+                local x, y = a.v, b.v
+                if x ~= nil and y ~= nil and type(x) == type(y) and x ~= y then
+                    if st.desc then return x > y end
+                    return x < y
+                end
+                if (x == nil) ~= (y == nil) then return x ~= nil end            -- empty values last
+                if type(x) ~= type(y) and x ~= nil and y ~= nil then return type(x) == "number" end
+                if a.name ~= b.name then return a.name < b.name end            -- ties: by name
+                return a.i < b.i
+            end)
+            local sorted = {}
+            for i, k in ipairs(keyed) do
+                sorted[i] = k.data
+                if self.columns[1].label == "#" then k.data.cells[1] = W.Rank(i) end -- renumber
+            end
+            rows = sorted
+        end
+        self.shownRows = rows
+        self:Render(rows)
+    end
+
+    function list:Render(rows)
         self:Layout()
         content:SetWidth(math.max(scroll:GetWidth() or 0, 100))
         local pal, font, size = W.Pal(), W.FontPath(), W.TextSize()
@@ -646,9 +755,106 @@ function W.List(parent, columns, opts)
             end
             x = x + widths[c] + gap
         end
+        self:PlaceHeaders()
     end
 
+    W.lists[list] = true
     return list
+end
+
+W.lists = setmetatable({}, { __mode = "k" })
+
+-- "crossed 1,000 Jumps", "travelled 10.0 km", "looted 100g"
+function W.MilestoneText(key, value)
+    if key == "travelTotal" then return "travelled " .. W.Distance(value) end
+    if key == "goldLooted" then return "looted " .. W.Money(value) end
+    local label = (FS.STATS[key] and FS.STATS[key].label) or tostring(key)
+    return "crossed " .. W.Num(value) .. " " .. label
+end
+
+-- Text without colours, icons or links (for sorting, sharing and exports).
+function W.Plain(text)
+    local s = tostring(text or "")
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("|H.-|h(.-)|h", "%1")
+    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- The value a cell sorts by: gold, durations, distances, dates and numbers are
+-- understood; anything else sorts as lower-case text.
+local UNIT = { g = 10000, s = 100, c = 1, d = 86400, h = 3600, m = 60 }
+local DIST = { km = 1000, m = 1, mi = 1609.34, yd = 0.9144 }
+function W.SortValue(text)
+    local s = W.Plain(text)
+    if s == "" or s == "-" or s == "?" then return nil end
+    local lower = s:lower()
+    -- distances have a space before the unit: "340 m", "1,234.5 km", "12 mi"
+    local num, unit = lower:match("^([%d,%.]+)%s+(%a+)$")
+    if num and DIST[unit] then return (tonumber((num:gsub(",", ""))) or 0) * DIST[unit] end
+    -- gold "12,345g 67s" and durations "2d 4h" / "18h 05m" / "45m" have none
+    local total, tokens, ok = 0, 0, true
+    for num, unit in lower:gmatch("([%d,%.]+)([gscdhm])%f[%A]") do
+        local n = tonumber((num:gsub(",", "")))
+        if not n then ok = false break end
+        total, tokens = total + n * UNIT[unit], tokens + 1
+    end
+    if ok and tokens > 0 and not lower:gsub("[%d,%.]+[gscdhm]%f[%A]", ""):find("%a") then
+        -- "s" as seconds vs silver: both scale the same way inside one column
+        return total
+    end
+    -- dates "31.10.2026" / "31.10 20:00" / "Sat 31.10 20:00"
+    local d, mo, y = s:match("(%d%d?)%.(%d%d?)%.(%d%d%d%d)")
+    if d then return tonumber(y) * 10000 + tonumber(mo) * 100 + tonumber(d) end
+    local d2, mo2, hh, mi = s:match("(%d%d?)%.(%d%d?)%s+(%d%d?):(%d%d)")
+    if d2 then return tonumber(mo2) * 1000000 + tonumber(d2) * 10000 + tonumber(hh) * 100 + tonumber(mi) end
+    -- "Online" first, then "today", then "N days ago"
+    if lower == "online" then return -1 end
+    if lower == "today" then return 0 end
+    local ago = lower:match("^(%d+) days? ago")
+    if ago then return tonumber(ago) end
+    -- numbers: "5,420", "71%", "3 / 10", "1.5x", "#2"
+    local lead = s:match("^[#%+]?(%-?[%d,]*%.?%d+)")
+    if lead then
+        local n = tonumber((lead:gsub(",", "")))
+        if n then return n end
+    end
+    return lower
+end
+
+-- A small window with selectable text (Ctrl+C to copy), for Discord and CSV exports.
+function W.CopyBox(title, text)
+    local e = W.copyFrame
+    if not e then
+        e = W.Box(UIParent, "panel")
+        e:SetSize(640, 420)
+        e:SetPoint("CENTER")
+        e:SetFrameStrata("DIALOG")
+        e:EnableMouse(true)
+        e.title = W.Text(e, "GameFontNormalLarge")
+        e.title:SetPoint("TOPLEFT", 14, -12)
+        e.hint = W.Text(e, "GameFontDisableSmall")
+        e.hint:SetPoint("TOPLEFT", 14, -34)
+        e.hint:SetText(T("Press Ctrl+C to copy, then Esc to close."))
+        local close = CreateFrame("Button", nil, e, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", -4, -4)
+        local scroll = CreateFrame("ScrollFrame", nil, e, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 14, -54)
+        scroll:SetPoint("BOTTOMRIGHT", -34, 14)
+        local box = CreateFrame("EditBox", nil, scroll)
+        box:SetMultiLine(true)
+        box:SetAutoFocus(false)
+        box:SetFontObject(ChatFontNormal)
+        box:SetWidth(580)
+        box:SetScript("OnEscapePressed", function() e:Hide() end)
+        scroll:SetScrollChild(box)
+        e.box = box
+        W.copyFrame = e
+    end
+    e.title:SetText(title or "")
+    e.box:SetText(text or "")
+    e:Show()
+    e.box:SetFocus()
+    e.box:HighlightText()
+    return e
 end
 
 -- Rank text with gold/silver/bronze for the top three.
@@ -717,7 +923,7 @@ function W.EventText(ev)
             "Interface\\Icons\\Spell_Holy_GuardianSpirit"
     elseif ev.kind == "milestone" then
         return W.Color("MILESTONE:", "ffaa33"),
-            string.format("%s crossed %s %s!", who, W.Num(ev.v), STAT_LABEL(ev.a)),
+            string.format("%s %s!", who, W.MilestoneText(ev.a, ev.v)),
             "Interface\\Icons\\Achievement_Quests_Completed_08"
     end
     return "", who, "Interface\\Icons\\INV_Misc_QuestionMark"
