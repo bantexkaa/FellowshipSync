@@ -542,7 +542,8 @@ function Options:DrawNotifications(scroll, n, container, group)
             n.own.level, function(v) n.own.level = v end)
         local own = {
             { "boss", "First boss kills" }, { "record", "New fastest boss kills" }, { "gear", "GearScore records" },
-            { "prof", "Profession ranks (" .. table.concat(FS.GAME_INFO.profSteps, "/") .. ")" }, { "milestone", "Round numbers (1,000 jumps...)" },
+            { "prof", "Profession ranks (" .. table.concat(FS.GAME_INFO.profSteps, "/") .. ")" }, { "milestone", "Milestones (jumps, kills, distance, gold...)" },
+            { "account", "Account milestones (all your characters together)" },
             { "fallen", "Hardcore: your character's final death" },
             { "bounty", "Guild bounty completed" }, { "wager", "Wager results" }, { "onthisday", "On this day (anniversaries)" },
         }

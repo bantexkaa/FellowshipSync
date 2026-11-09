@@ -54,6 +54,7 @@ end
 
 function Notify:WantOwnToast(ev)
     local own = self:Settings().own
+    if ev.kind == "accmilestone" then return own.account ~= false end
     if ev.kind == "level" then
         local v = tonumber(ev.v) or 0
         return own.level == "all" or (own.level == "max" and v == FS:MaxLevel())
@@ -130,7 +131,7 @@ function Notify:ToastText(ev, mine)
         return "You Have a Rival!", who .. " named " .. W.CharName(FS.db.global.characters[ev.a] or {}) .. " as their rival.", icon
     end
     local titles = { gear = "New GearScore Record!", legacy = FS.POINTS.item .. " Complete!", level = "Level Up!",
-                     prof = "Profession Milestone!", milestone = "Milestone Reached!" }
+                     prof = "Profession Milestone!", milestone = "Milestone Reached!", accmilestone = "Account Milestone!" }
     return (mine and titles[kind]) or ("Guild: " .. (titles[kind] or "News")), sentence, icon
 end
 
@@ -173,7 +174,7 @@ end
 ---------------------------------------------------------------------------
 
 function Notify:OnEvent(ev)
-    if ev.mock or not FS.db then return end
+    if ev.mock or ev.quiet or not FS.db then return end -- quiet: already part of a summary toast
     local n = self:Settings()
     if ev.mine then
         if n.toasts and self:WantOwnToast(ev) then

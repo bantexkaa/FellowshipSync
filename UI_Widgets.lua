@@ -766,10 +766,30 @@ W.lists = setmetatable({}, { __mode = "k" })
 
 -- "crossed 1,000 Jumps", "travelled 10.0 km", "looted 100g"
 function W.MilestoneText(key, value)
-    if key == "travelTotal" then return "travelled " .. W.Distance(value) end
-    if key == "goldLooted" then return "looted " .. W.Money(value) end
-    local label = (FS.STATS[key] and FS.STATS[key].label) or tostring(key)
-    return "crossed " .. W.Num(value) .. " " .. label
+    local v = tonumber(value) or 0
+    local imperial = FS.db and FS.db.profile.distanceUnits == "imperial"
+    local function Whole(x) return math.abs(x - math.floor(x + 0.5)) < 0.05 and W.Num(math.floor(x + 0.5)) or W.Decimal(x) end
+    local function Dist(m)
+        if imperial then
+            local yd = m / 0.9144
+            if yd < 1759.5 then return W.Num(math.floor(yd + 0.5)) .. " yd" end
+            return Whole(yd / 1760) .. " mi"
+        end
+        if m < 999.5 then return W.Num(math.floor(m + 0.5)) .. " m" end
+        return Whole(m / 1000) .. " km"
+    end
+    if key == "travelTotal" then return "travelled " .. Dist(v) end
+    if key == "marathon" then return "ran a marathon (" .. Dist(v) .. " on foot)" end
+    if key == "ultra" then return "became an ultra-runner (" .. Dist(v) .. " on foot)" end
+    if key == "legend" then return "became a long-distance legend (" .. Dist(v) .. " travelled)" end
+    local stat = FS.STATS[key]
+    local label = (stat and stat.label) or tostring(key)
+    if stat and stat.fmt == "money" then return "reached " .. W.Plain(W.Money(v)) .. " " .. label:lower() end
+    if stat and stat.fmt == "duration" then
+        local d = math.floor(v / 86400 + 0.5)
+        return string.format("reached %s day%s of %s", W.Num(d), d == 1 and "" or "s", label:lower())
+    end
+    return "crossed " .. W.Num(v) .. " " .. label
 end
 
 -- Text without colours, icons or links (for sorting, sharing and exports).
@@ -921,6 +941,9 @@ function W.EventText(ev)
         return W.Color("REST IN PEACE:", "aaaaaa"),
             string.format("%s fell for good at level %d in %s.", who, tonumber(ev.v) or 0, ev.z or "an unknown place"),
             "Interface\\Icons\\Spell_Holy_GuardianSpirit"
+    elseif ev.kind == "accmilestone" then
+        return W.Color("ACCOUNT:", "ffaa33"), "Your characters together " .. W.MilestoneText(ev.a, ev.v) .. "!",
+            "Interface\\Icons\\Achievement_Quests_Completed_08"
     elseif ev.kind == "milestone" then
         return W.Color("MILESTONE:", "ffaa33"),
             string.format("%s %s!", who, W.MilestoneText(ev.a, ev.v)),

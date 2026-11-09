@@ -35,16 +35,74 @@ local STAT_NAMES = {
 local FALLBACK_IDS = { kills = 1197, deaths = 60, quests = 98, critters = 108 }
 local MONEY_STATS = { goldLooted = true, repairs = true }
 
--- Round-number milestones per stat: chat and jumps start at 1,000 (those come fast),
--- distance in metres (10 km ... 5,000 km) and gold looted in copper (100g ... 100,000g).
-local COMMON = { 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000 }
-local BIG_START = { 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000 }
-local MILESTONE_SETS = {
-    { "kills", COMMON }, { "quests", COMMON }, { "critters", COMMON }, { "fish", COMMON }, { "deaths", COMMON },
-    { "jumps", BIG_START }, { "chat", BIG_START },
-    { "travelTotal", { 10000, 50000, 100000, 250000, 500000, 1000000, 2500000, 5000000 } },
-    { "goldLooted", { 1000000, 10000000, 100000000, 1000000000 } },
-}
+-- Milestone ladders ---------------------------------------------------------------
+-- Counts: 50, 100, 200, 500, 750, 1,000, 1,500, 2,000, then every 1,000 up to 10,000,
+-- every 5,000 up to 100,000, and every 50,000 after that, forever.
+local function Ladder(v)
+    local best = 0
+    for _, t in ipairs({ 50, 100, 200, 500, 750, 1000, 1500, 2000 }) do if v >= t then best = t end end
+    if v >= 3000 then best = math.min(10000, math.floor(v / 1000) * 1000) end
+    if v >= 15000 then best = math.min(100000, math.floor(v / 5000) * 5000) end
+    if v >= 150000 then best = math.floor(v / 50000) * 50000 end
+    return best
+end
+-- Chat comes fast: the same ladder from 1,000.
+local function ChatLadder(v) local r = Ladder(v) return r >= 1000 and r or 0 end
+-- All characters together: bigger steps.
+local function AccountLadder(v)
+    local best = 0
+    for _, t in ipairs({ 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000 }) do if v >= t then best = t end end
+    if v >= 750000 then best = math.floor(v / 250000) * 250000 end
+    return best
+end
+local GOLD, DAY = 10000, 86400
+local function Steps(v, unit, list, every, from)
+    local x, best = v / unit, 0
+    for _, t in ipairs(list) do if x >= t then best = t end end
+    if x >= from then best = math.floor(x / every) * every end
+    return best * unit
+end
+local function GoldLadder(c) return Steps(c, GOLD, { 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000 }, 100000, 200000) end
+local function AccountGold(c) return Steps(c, GOLD, { 1000, 5000, 10000, 25000, 50000, 100000, 250000 }, 250000, 500000) end
+local function TimeLadder(s) return Steps(s, DAY, { 1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120 }, 30, 150) end
+local function AccountTime(s) return Steps(s, DAY, { 7, 14, 30, 60, 90, 180, 365 }, 100, 465) end
+
+-- Distance in the chosen unit (u = metres or yards): metres/yards first, then whole km/miles.
+local function DistLadder(u, imperial)
+    local factor = imperial and 1760 or 1000
+    local best = 0
+    for _, t in ipairs(imperial and { 50, 100, 250, 500, 1000 } or { 50, 100, 250, 500, 750 }) do if u >= t then best = t end end
+    local k = u / factor
+    for _, t in ipairs({ 1, 2, 5, 10, 15, 20, 25, 50, 75, 100 }) do if k >= t then best = t * factor end end
+    if k >= 150 then best = math.min(500, math.floor(k / 50) * 50) * factor end
+    if k >= 600 then best = math.min(1000, math.floor(k / 100) * 100) * factor end
+    if k >= 1250 then best = math.min(5000, math.floor(k / 250) * 250) * factor end
+    local last = imperial and 500 or 1000
+    if k >= 5000 + last then best = math.floor(k / last) * last * factor end
+    return best
+end
+local function AccountDist(u, imperial)
+    local factor = imperial and 1760 or 1000
+    return Steps(u, factor, { 100, 250, 500, 1000, 2500, 5000 }, 2500, 7500)
+end
+Tracker.Ladder, Tracker.DistLadder, Tracker.AccountLadder = Ladder, DistLadder, AccountLadder
+
+-- Which stats get milestones: { key, character ladder, account ladder }
+local MILESTONE_STATS = {}
+for _, key in ipairs({ "kills", "deaths", "quests", "critters", "fish", "jumps", "bossKills", "duelsWon", "epics", "hearths",
+                       "areasDiscovered", "flightPathsFound", "flightRides", "corpseRuns", "emotes", "potions", "foodDrink",
+                       "bandages", "trades", "mailsSent", "whispersSent", "rollsWon", "crafted", "gathered", "instanceRuns",
+                       "fights", "pvpKills", "fallDeaths" }) do
+    table.insert(MILESTONE_STATS, { key, Ladder, AccountLadder })
+end
+table.insert(MILESTONE_STATS, { "chat", ChatLadder, AccountLadder })
+table.insert(MILESTONE_STATS, { "goldLooted", GoldLadder, AccountGold })
+table.insert(MILESTONE_STATS, { "moneyIn", GoldLadder, AccountGold })
+table.insert(MILESTONE_STATS, { "playtime", TimeLadder, AccountTime })
+table.insert(MILESTONE_STATS, { "combatTime", TimeLadder, AccountTime })
+
+-- Fun one-offs: { key, stat, metres }
+local SPECIALS = { { "marathon", "travelFoot", 42195 }, { "ultra", "travelFoot", 100000 }, { "legend", "travelTotal", 1000000 } }
 -- Level steps dated for Guild Firsts: the game's extra steps (Forever: the Legacy
 -- class challenges 25/45) plus max level.
 local function LevelStamps()
@@ -326,19 +384,29 @@ end
 ---------------------------------------------------------------------------
 
 function Tracker:ScanLegacy()
-    local total = tonumber((Safe(GetTotalAchievementPoints))) or 0
+    local apiTotal = tonumber((Safe(GetTotalAchievementPoints))) or 0
+    local total = apiTotal
     local catalog, earned, maxPoints, earnedPoints = nil, {}, 0, 0
+    self.legacyScanAt = time()
 
     if FS.IS_FOREVER and GetCategoryList and GetCategoryNumAchievements and GetAchievementInfo then
+        -- Forever shows its Legacy Challenges through the achievement functions. Each completed
+        -- challenge is worth one Legacy Point, whatever the achievement-points field says
+        -- (it can be 0 for Legacy Challenges), so we count the challenges themselves.
         catalog = {}
-        for _, cat in ipairs(Safe(GetCategoryList) or {}) do
+        local cats = Safe(GetCategoryList) or {}
+        local diag = { categories = #cats, challenges = 0, completed = 0, apiTotal = apiTotal, pointsField = 0 }
+        for _, cat in ipairs(cats) do
             for i = 1, (Safe(GetCategoryNumAchievements, cat, true) or 0) do
                 local id, name, points, completed, month, day, year, _, _, icon = Safe(GetAchievementInfo, cat, i)
-                if id and (tonumber(points) or 0) > 0 and #catalog < 500 then
-                    table.insert(catalog, { id = id, name = name, points = points, done = completed and true or false, icon = icon,
-                                            date = (completed and tonumber(year)) and time({ year = 2000 + year, month = month, day = day, hour = 12 }) or nil })
-                    maxPoints = maxPoints + points
-                    if completed then earnedPoints = earnedPoints + points end
+                if id and not FS.IsSecret(id) and #catalog < 500 then
+                    diag.challenges = diag.challenges + 1
+                    diag.pointsField = diag.pointsField + (tonumber(points) or 0)
+                    local done = completed and true or false
+                    table.insert(catalog, { id = id, name = name, points = 1, done = done, icon = icon,
+                                            date = (done and tonumber(year)) and time({ year = 2000 + year, month = month, day = day, hour = 12 }) or nil })
+                    maxPoints = maxPoints + 1
+                    if done then earnedPoints = earnedPoints + 1; diag.completed = diag.completed + 1 end
                 end
             end
         end
@@ -349,8 +417,9 @@ function Tracker:ScanLegacy()
                 if not firsts["lg:" .. a.id] then firsts["lg:" .. a.id] = a.date or 0 end
             end
         end
-        -- If the total isn't reported on Forever, count the completed challenges ourselves.
-        if total == 0 then total = earnedPoints end
+        -- Our own count is the Legacy total; the game's figure is only a fallback.
+        total = earnedPoints > 0 and earnedPoints or apiTotal
+        self.legacyDiag = diag
     elseif GetLatestCompletedAchievements then
         for _, id in ipairs({ Safe(GetLatestCompletedAchievements) }) do
             if type(id) == "number" then table.insert(earned, id) end
@@ -366,10 +435,15 @@ end
 function Tracker:PrintLegacyCheck()
     self:ScanLegacy()
     FS:Print(string.format("%s: %s", FS.POINTS.long, tostring(self.legacyTotal or 0)))
-    if self.legacyCatalog then
-        FS:Print(string.format("%d %s found, worth %d %s in total.", #self.legacyCatalog, FS.POINTS.items, self.legacyMax or 0, FS.POINTS.short))
-    else
-        FS:Print("Retail: showing your most recent achievements.")
+    local d = self.legacyDiag
+    if d then
+        FS:Print(string.format("Found %d categories and %d challenges; %d completed. Game's points total: %d (points field sum: %d).",
+            d.categories, d.challenges, d.completed, d.apiTotal, d.pointsField))
+        if d.challenges == 0 then
+            FS:Print("No challenges were listed yet. Open the Legacy window once, then type /fsync legacy again.")
+        end
+    elseif self.legacyCatalog == nil then
+        FS:Print("Showing your most recent achievements (this game has achievements, not Legacy Challenges).")
     end
 end
 
@@ -507,7 +581,9 @@ end
 function Tracker:Snapshot()
     if not self.db then return end
     self:UpdateStatistics()
-    if not self.legacyEarned then self:ScanLegacy() end
+    -- Rescan at least once a minute: challenge data may arrive after login, and completing
+    -- a Legacy Challenge doesn't always fire the achievement event.
+    if not self.legacyEarned or time() - (self.legacyScanAt or 0) >= 60 or (self.legacyTotal or 0) == 0 then self:ScanLegacy() end
     if not self.professions then self:ScanProfessions() end
 
     local key = FS:GetPlayerKey()
@@ -677,17 +753,81 @@ end
 function Tracker:CheckMilestones(rec)
     local c = self.db.char
     local first = not c.milestonesInit
-    for _, set in ipairs(MILESTONE_SETS) do
-        local key = set[1]
-        local value = FS:GetValue(rec, key, "all")
-        local reached = 0
-        for _, th in ipairs(set[2]) do if value >= th then reached = th end end
-        if reached > (c.milestones[key] or 0) then
-            if not first then
-                FS:AddEvent({ kind = "milestone", who = rec.fullName, a = key, v = reached })
-            end
-            c.milestones[key] = reached
+    local batch = {}
+    -- Records a step; a stat seen for the first time starts quietly at today's value.
+    local function Step(store, key, reached, ev)
+        if store[key] == nil then store[key] = reached return end
+        if reached > store[key] then
+            if not first and ev then table.insert(batch, ev) end
+            store[key] = reached
         end
+    end
+
+    -- Character milestones
+    for _, m in ipairs(MILESTONE_STATS) do
+        local key = m[1]
+        if FS.STATS[key] then
+            local reached = m[2](FS:GetValue(rec, key, "all"))
+            Step(c.milestones, key, reached, { kind = "milestone", who = rec.fullName, a = key, v = reached })
+        end
+    end
+    -- Distance, in the chosen unit (each unit keeps its own ladder)
+    local imperial = FS.db.profile.distanceUnits == "imperial"
+    local perUnit = imperial and 0.9144 or 1
+    local unitTag = imperial and ":yd" or ":m"
+    local reachedDist = DistLadder(FS:GetValue(rec, "travelTotal", "all") / perUnit, imperial)
+    Step(c.milestones, "travelTotal" .. unitTag, reachedDist,
+        { kind = "milestone", who = rec.fullName, a = "travelTotal", v = reachedDist * perUnit })
+    -- Fun one-offs: a marathon, an ultra, a long-distance legend
+    for _, sp in ipairs(SPECIALS) do
+        local done = FS:GetValue(rec, sp[2], "all") >= sp[3] and 1 or 0
+        Step(c.milestones, "special:" .. sp[1], done, { kind = "milestone", who = rec.fullName, a = sp[1], v = sp[3] })
+    end
+
+    -- Account milestones: all your characters in this game together. No toast when only one
+    -- character counts, or when this character crossed the number on its own (no double toasts).
+    local g = FS.db.global
+    g.accMilestones = g.accMilestones or {}
+    local acc = g.accMilestones[FS.GAME] or {}
+    g.accMilestones[FS.GAME] = acc
+    local mine = {}
+    for _, r in ipairs(FS:GetScopeCharacters("solo")) do if not r.isMock then table.insert(mine, r) end end
+    local function Account(key, ladder, own, toMeters)
+        local sum, contributors = 0, 0
+        for _, r in ipairs(mine) do
+            local v = (toMeters and FS:GetValue(r, "travelTotal", "all") / perUnit) or FS:GetValue(r, key, "all")
+            sum = sum + v
+            if v > 0 then contributors = contributors + 1 end
+        end
+        local reached = ladder(sum)
+        local storeKey = key .. (toMeters and unitTag or "")
+        local ev
+        if contributors >= 2 and own < reached then
+            ev = { kind = "accmilestone", who = rec.fullName, a = key, v = toMeters and reached * perUnit or reached }
+        end
+        Step(acc, storeKey, reached, ev)
+        if ev == nil and acc[storeKey] and reached > (acc[storeKey] or 0) then acc[storeKey] = reached end
+    end
+    for _, m in ipairs(MILESTONE_STATS) do
+        if FS.STATS[m[1]] then Account(m[1], m[3], FS:GetValue(rec, m[1], "all")) end
+    end
+    Account("travelTotal", function(u) return AccountDist(u, imperial) end, FS:GetValue(rec, "travelTotal", "all") / perUnit, true)
+
+    -- Several at once (after an update, or a big session): one summary toast instead of many.
+    if #batch >= 3 then
+        local parts = {}
+        for i, ev in ipairs(batch) do
+            ev.quiet = true
+            FS:AddEvent(ev)
+            if i <= 3 then table.insert(parts, FS.W.MilestoneText(ev.a, ev.v)) end
+        end
+        local want = FS.db.profile.notify.toasts and FS.db.profile.notify.own.milestone ~= false
+        if want then
+            FS.Extras:ShowToast("Milestones!", string.format("%s %s%s", FS.ShortName(rec.fullName), table.concat(parts, ", "),
+                #batch > 3 and string.format(" and %d more", #batch - 3) or ""), "Interface\\Icons\\Achievement_Quests_Completed_08", false)
+        end
+    else
+        for _, ev in ipairs(batch) do FS:AddEvent(ev) end
     end
     if first then c.milestonesInit = true end
 

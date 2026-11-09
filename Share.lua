@@ -164,6 +164,14 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.7.1"] = {
+        "Legacy Points now show correctly on WoW: Forever (each completed Legacy Challenge counts as one point).",
+        "Milestones for most stats: kills, quests, jumps, fish, gold, playtime, exploration and many more.",
+        "Distance milestones in metres, then whole kilometres (or yards, then miles) - plus a marathon surprise.",
+        "Account milestones: all your characters together (can be switched off in Notifications).",
+        "Several milestones at once now arrive as one summary toast.",
+        "Legacy Race: a new By Player view showing each character's next Legacy Point.",
+    },
     ["3.7"] = {
         "Sort any list: click a column header (click again to reverse). Your choice is saved.",
         "FellowshipSync settings now also live in Esc > Options > AddOns.",
@@ -182,7 +190,9 @@ function Share:CheckWhatsNew()
     local seen = g.lastVersion
     g.lastVersion = version
     if not seen or seen == version then return end -- fresh install or same version
-    local notes = FS.WHATS_NEW[version:match("^(%d+%.%d+)") or ""]
+    -- This exact version's notes; or, when coming from an older version family, that family's notes.
+    local family = version:match("^(%d+%.%d+)") or ""
+    local notes = FS.WHATS_NEW[version] or ((seen:match("^(%d+%.%d+)") ~= family) and FS.WHATS_NEW[family]) or nil
     if not notes then return end
     local f = self.whatsNew
     if not f then

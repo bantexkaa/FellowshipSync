@@ -89,6 +89,8 @@ function Chronicle:Refresh()
     self.tabs:Select(self.current, true)
     if self.current == "race" and not FS.IS_FOREVER then self.current = "firsts"; self.tabs:Select("firsts", true) end
     for id, l in pairs(self.lists) do l.frame:SetShown(id == self.current) end
+    if self.raceToggle then self.raceToggle:SetShown(self.current == "race") end
+    if self.racePlayers then self.racePlayers.frame:Hide() end
     local memorial = self.current == "memorial"
     self.memScroll:SetShown(memorial)
     self.memEmpty:Hide()
@@ -108,6 +110,7 @@ function Chronicle:Refresh()
         self.title:SetText("Legacy Race  -  " .. scope)
         self.sub:SetText("The WoW: Forever Legacy challenges: how many players have done each step, who was first, and who is closest to the next one.")
         self:RefreshRace()
+        self:RefreshRacePlayers()
     elseif self.current == "weekly" then
         self.title:SetText("Weekly Chronicle  -  from " .. date("%a %d.%m", math.max(0, FS:WeekStart())))
         self.sub:SetText("This week's champions, records and casualties. Resets with the weekly server reset.")
@@ -586,4 +589,53 @@ function Chronicle:RefreshMemorial()
     for i = #fallen + 1, #self.stones do self.stones[i]:Hide() end
     self.memContent:SetHeight(math.max(10, #fallen * 92))
     self.memEmpty:SetShown(#fallen == 0)
+end
+
+-- Legacy Race by player: points, and how close each character is to its next Legacy Point.
+local GATHERING = { Mining = true, Herbalism = true, Skinning = true, Fishing = true }
+function Chronicle:RefreshRacePlayers()
+    if not self.raceToggle then
+        self.raceToggle = W.Button(self.frame, "By Player", 120, 22, function()
+            self.raceByPlayer = not self.raceByPlayer
+            self:Refresh()
+        end)
+        self.raceToggle:SetPoint("TOPRIGHT", -36, -46)
+        self.racePlayers = W.List(self.frame, {
+            { label = "#", width = 30 }, { label = "Character", width = 200 }, { label = "Legacy Points", width = 100, justify = "RIGHT" },
+            { label = "Level", width = 60, justify = "RIGHT" }, { label = "Next Class Challenge", width = 220 },
+            { label = "Next Profession Challenge", width = 260 },
+        }, { id = "racePlayers", onClick = function(rec) UI:OpenInspector(rec) end })
+        self.racePlayers.frame:SetPoint("TOPLEFT", 14, -84)
+        self.racePlayers.frame:SetPoint("BOTTOMRIGHT", -12, 10)
+    end
+    self.raceToggle:Show()
+    self.raceToggle.text:SetText(W.T(self.raceByPlayer and "By Challenge" or "By Player"))
+    self.lists.race.frame:SetShown(not self.raceByPlayer)
+    self.racePlayers.frame:SetShown(self.raceByPlayer and true or false)
+    if not self.raceByPlayer then return end
+    local rows = {}
+    for _, r in ipairs(FS:GetScopeCharacters(UI.currentScope)) do
+        local level = tonumber(r.level) or 0
+        local nextLevel
+        for _, t in ipairs({ 25, 45, 60 }) do if level < t then nextLevel = t break end end
+        local classText = nextLevel and string.format("Level %d (%d to go)", nextLevel, nextLevel - level) or W.Color("All done", "1eff00")
+        local best
+        for _, p in ipairs(r.profs or {}) do
+            if p.name and not GATHERING[p.name] and p.kind ~= "secondary" then
+                for _, t in ipairs({ 150, 225, 300 }) do
+                    local rank = tonumber(p.rank) or 0
+                    if rank < t then
+                        if not best or t - rank < best.left then best = { name = p.name, t = t, left = t - rank } end
+                        break
+                    end
+                end
+            end
+        end
+        local profText = best and string.format("%s %d (%d to go)", best.name, best.t, best.left) or W.Color("-", "666666")
+        table.insert(rows, { rec = r, sv = { [3] = tonumber(r.legacy) or 0 }, cells = { "", W.Label(r), W.Num(r.legacy or 0),
+            tostring(level), classText, profText } })
+    end
+    table.sort(rows, function(a, b) return (a.sv[3] or 0) > (b.sv[3] or 0) end)
+    for i, row in ipairs(rows) do row.cells[1] = W.Rank(i) end
+    self.racePlayers:SetRows(rows)
 end

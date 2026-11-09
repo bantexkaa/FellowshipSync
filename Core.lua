@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.7.0"
+local FALLBACK_VERSION = "3.7.1"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -349,7 +349,7 @@ local defaults = {
         notify = {
             toasts = true,
             -- Your own events. level: "all" | "max" | "off"
-            own = { level = "tens", legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
+            own = { level = "tens", account = true, legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
                     bounty = true, wager = true, onthisday = true },
             -- Guildmates' and friends' events. boss: "first" | "all" | "off"; level: "max" | "tens" | "off"
             guild = { boss = "first", level = "max", legacy = false, fallen = true, death = false, record = true, prof = false,
