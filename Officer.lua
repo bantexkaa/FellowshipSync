@@ -295,12 +295,12 @@ function Officer:Announce(o)
     if not FS.db.profile.notify.toasts or time() - (o.t or 0) > 3 * 86400 then return end
     local who = FS.ShortName(o.author or "")
     if o.type == "notice" and g.notices ~= false then
-        FS.Extras:ShowToast("Guild Notice", (o.text or "") .. FS.W.Color("  - " .. who, "888888"), "Interface\\Icons\\INV_Letter_15", true)
+        FS.Extras:ShowToast("Guild Notice", (o.text or "") .. FS.W.Color("  - " .. who, "888888"), "Interface\\Icons\\INV_Letter_15", true, { kind = "notice" })
     elseif o.type == "poll" and g.notices ~= false then
-        FS.Extras:ShowToast("New Guild Poll", tostring(o.q) .. "  (vote in the Guild tab)", "Interface\\Icons\\INV_Misc_Note_05", true)
+        FS.Extras:ShowToast("New Guild Poll", tostring(o.q) .. "  (vote in the Guild tab)", "Interface\\Icons\\INV_Misc_Note_05", true, { kind = "poll" })
     elseif o.type == "event" and g.events ~= false then
         FS.Extras:ShowToast("New Guild Event", string.format("%s - %s", tostring(o.title), date("%a %d.%m %H:%M", o.when or 0)),
-            "Interface\\Icons\\INV_Misc_PocketWatch_02", true)
+            "Interface\\Icons\\INV_Misc_PocketWatch_02", true, { kind = "event" })
     elseif o.type == "award" and FS.db.global.characters[o.to or ""] and FS.db.global.characters[o.to].isMyChar then
         FS.Extras:ShowToast("You Received an Award!", tostring(o.title) .. FS.W.Color("  from " .. who, "888888"),
             "Interface\\Icons\\Achievement_Guildperk_Honorablemention", false)

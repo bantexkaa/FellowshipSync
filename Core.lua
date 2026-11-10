@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.7.1"
+local FALLBACK_VERSION = "3.8.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -335,6 +335,12 @@ local defaults = {
         officer = { inactiveDays = 14 },
         share = { channel = "guild", prefix = true },
         unitTooltip = true,            -- guildmates' stats in the game tooltip
+        pins = {},                     -- characters pinned to the top of leaderboards
+        showPins = true,
+        colorblind = false,            -- blue/orange instead of green/red
+        optionsMode = "simple",        -- "simple" (ten settings) or "advanced" (everything)
+        startTab = "last",             -- page the window opens on ("last" or a module name)
+        startScope = "last",           -- view it opens in ("last" or solo / guild / network / netaccs)
         uiScale = 1.0,
         textSize = 12,
         bgAlpha = 0.95,
@@ -725,7 +731,14 @@ function FellowshipSync:ToggleUI()
     local firstOpen = not UI.MainFrame
     UI:InitializeFrame()
     UI.MainFrame:Show()
-    if not firstOpen then UI:RefreshActiveTab() end
+    -- Open on the chosen page and view (or wherever you left off)
+    local prof = self.db.profile
+    if prof.startScope and prof.startScope ~= "last" then UI:SetScope(prof.startScope, true) end
+    if prof.startTab and prof.startTab ~= "last" and UI.modIndex and UI.modIndex[prof.startTab] then
+        UI:SelectTab(UI.modIndex[prof.startTab])
+    elseif not firstOpen then
+        UI:RefreshActiveTab()
+    end
 end
 
 -- Addon compartment (the puzzle-piece menu by the minimap).

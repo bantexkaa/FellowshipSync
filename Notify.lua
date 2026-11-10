@@ -179,7 +179,7 @@ function Notify:OnEvent(ev)
     if ev.mine then
         if n.toasts and self:WantOwnToast(ev) then
             local title, desc, icon = self:ToastText(ev, true)
-            FS.Extras:ShowToast(title, desc, icon, false)
+            FS.Extras:ShowToast(title, desc, icon, false, ev)
         end
         if n.announce and self:WantAnnounce(ev) then self:Announce(self:ChatText(ev)) end
         return
@@ -187,7 +187,7 @@ function Notify:OnEvent(ev)
     if (tonumber(ev.t) or 0) < time() - RECENT then return end -- old news (e.g. right after someone logs in)
     if n.toasts and self:WantGuildToast(ev) then
         local title, desc, icon = self:ToastText(ev, false)
-        FS.Extras:ShowToast(title, desc, icon, true)
+        FS.Extras:ShowToast(title, desc, icon, true, ev)
     end
 end
 

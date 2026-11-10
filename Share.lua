@@ -164,6 +164,16 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.8"] = {
+        "Tidier window: six groups (Leaderboards, Players, History, Fellowship, Guild, Options) with pages underneath.",
+        "Search everything: characters, enemies, bosses, killers and zones from one box.",
+        "Click a toast to jump straight to what it's about.",
+        "Pin players (Inspector > Pin): they also show at the top of leaderboards. Your rival is pinned automatically.",
+        "Leaderboards show who moved up or down this week.",
+        "A ? next to every page title explains what it shows and how it's counted.",
+        "Options: Simple (the most-used settings) or Advanced (everything); choose which page and view the window opens on.",
+        "Colour-blind friendly colours (Options).",
+    },
     ["3.7.1"] = {
         "Legacy Points now show correctly on WoW: Forever (each completed Legacy Challenge counts as one point).",
         "Milestones for most stats: kills, quests, jumps, fish, gold, playtime, exploration and many more.",

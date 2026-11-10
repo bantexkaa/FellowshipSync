@@ -84,6 +84,20 @@ local ES = {
     ["What's new in FellowshipSync %s"] = "Novedades de FellowshipSync %s", ["Pick two characters with the arrows above."] = "Elige dos personajes con las flechas.",
 }
 
+-- 3.8 additions
+for k, v in pairs({ ["Leaderboards"] = "Bestenlisten", ["Players"] = "Spieler", ["History"] = "Geschichte", ["Pinned"] = "Angeheftet",
+    ["Pin"] = "Anheften", ["Unpin"] = "Lösen", ["Basics"] = "Grundlagen", ["Search everything..."] = "Alles durchsuchen...",
+    ["Nothing found."] = "Nichts gefunden.", ["Enemy"] = "Gegner", ["Boss"] = "Boss",
+    ["Show all settings (Advanced)"] = "Alle Einstellungen (Erweitert)", ["Show fewer settings (Simple)"] = "Weniger Einstellungen (Einfach)" }) do DE[k] = v end
+for k, v in pairs({ ["Leaderboards"] = "Classements", ["Players"] = "Joueurs", ["History"] = "Histoire", ["Pinned"] = "Épinglé",
+    ["Pin"] = "Épingler", ["Unpin"] = "Désépingler", ["Basics"] = "Essentiel", ["Search everything..."] = "Tout rechercher...",
+    ["Nothing found."] = "Aucun résultat.", ["Enemy"] = "Ennemi", ["Boss"] = "Boss",
+    ["Show all settings (Advanced)"] = "Tous les réglages (Avancé)", ["Show fewer settings (Simple)"] = "Moins de réglages (Simple)" }) do FR[k] = v end
+for k, v in pairs({ ["Leaderboards"] = "Clasificaciones", ["Players"] = "Jugadores", ["History"] = "Historia", ["Pinned"] = "Fijado",
+    ["Pin"] = "Fijar", ["Unpin"] = "Soltar", ["Basics"] = "Básico", ["Search everything..."] = "Buscar en todo...",
+    ["Nothing found."] = "Sin resultados.", ["Enemy"] = "Enemigo", ["Boss"] = "Jefe",
+    ["Show all settings (Advanced)"] = "Todos los ajustes (Avanzado)", ["Show fewer settings (Simple)"] = "Menos ajustes (Simple)" }) do ES[k] = v end
+
 local DICTS = { deDE = DE, frFR = FR, esES = ES, esMX = ES }
 local active = DICTS[(GetLocale and GetLocale()) or "enUS"]
 addonTable.T = function(text) return (active and active[text]) or text end

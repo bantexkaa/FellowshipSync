@@ -141,6 +141,15 @@ function Extras:BuildToast()
     if self.toast then return end
     local t = CreateFrame("Button", "FellowshipSyncToast", UIParent, "BackdropTemplate")
     t:SetSize(380, 66)
+    -- Click a toast to open what it's about (not while moving toasts around).
+    t:RegisterForClicks("LeftButtonUp")
+    t:SetScript("OnClick", function(self)
+        if Extras.moving then return end
+        local item = Extras.currentToast
+        self:Hide()
+        if FS.Nav then FS.Nav:FromEvent(item and item.ev) end
+        Extras:NextToast()
+    end)
     t:SetFrameStrata("DIALOG")
     t:SetBackdrop(W.SOFT)
     t:SetMovable(true)
@@ -158,7 +167,7 @@ function Extras:BuildToast()
     t.desc = W.Text(t, "GameFontHighlightSmall")
     t.desc:SetPoint("TOPLEFT", t.title, "BOTTOMLEFT", 0, -2)
     t.desc:SetPoint("RIGHT", t, "RIGHT", -10, 0)
-    t:SetScript("OnClick", function(self) if not Extras.moving then self.elapsed = 99 end end)
+    -- (clicking a toast opens what it's about; see the OnClick set above)
     t:SetScript("OnDragStart", function(self) if Extras.moving then self:StartMoving() end end)
     t:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
@@ -193,7 +202,7 @@ function Extras:ApplyToastLayout()
 end
 
 -- isGuild: a guildmate's / friend's event (can be held while in instances).
-function Extras:ShowToast(title, desc, icon, isGuild)
+function Extras:ShowToast(title, desc, icon, isGuild, ev)
     if not self.toast or not FS.db.profile.notify.toasts then return end
     local q = self.toastQueue
     if #q >= 8 then
@@ -207,7 +216,7 @@ function Extras:ShowToast(title, desc, icon, isGuild)
         last.desc = string.format("+%d more updates. Open FellowshipSync (/fsync) to read them.", last.count)
         return
     end
-    table.insert(q, { title = title, desc = desc, icon = icon, guild = isGuild })
+    table.insert(q, { title = title, desc = desc, icon = icon, guild = isGuild, ev = ev })
     if not self.toast:IsShown() then self:NextToast() end
 end
 
@@ -227,6 +236,7 @@ function Extras:NextToast()
     end
     if not index then return end -- everything is on hold for now
     local item = table.remove(q, index)
+    self.currentToast = item
     local t, pal = self.toast, W.Pal()
     FS.Style:ApplyToast(t)
     t.title:SetText(item.title)

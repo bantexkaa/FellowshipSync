@@ -114,6 +114,17 @@ function Inspector:Build(parent)
     compareBtn:SetPoint("RIGHT", bookBtn, "LEFT", -6, 0)
     local shareBtn = W.Button(h, "Share", 70, 22, function() FS.Share:Open(self:ShareText()) end)
     shareBtn:SetPoint("RIGHT", compareBtn, "LEFT", -6, 0)
+    self.pinBtn = W.Button(h, "Pin", 60, 22, function()
+        if not self.rec then return end
+        local pins = FS.db.profile.pins
+        for i, key in ipairs(pins) do
+            if key == self.rec.fullName then table.remove(pins, i); self:UpdatePin() return end
+        end
+        table.insert(pins, self.rec.fullName)
+        for i = #pins, 11, -1 do table.remove(pins, 1) end -- at most 10 pins
+        self:UpdatePin()
+    end)
+    self.pinBtn:SetPoint("RIGHT", shareBtn, "LEFT", -6, 0)
     self.gsLabel = W.Text(h, "GameFontDisableSmall", "RIGHT")
     self.gsLabel:SetPoint("TOPRIGHT", -14, -42)
     self.gsLabel:SetText(FS.HAS_POINTS and ("GEARSCORE & " .. string.upper(FS.POINTS.long)) or "GEARSCORE")
@@ -258,6 +269,7 @@ function Inspector:Refresh()
     if not rec then return end
     for _, fs in ipairs({ self.gearTitle, self.profTitle, self.legacyTitle, self.ledgerTitle }) do W.AccentText(fs) end
     self.rivalBtn:SetShown(not rec.isMyChar)
+    self:UpdatePin()
 
     -- Header
     local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[rec.cls or ""]
@@ -440,4 +452,12 @@ function Inspector:ShareText()
         FS.ShortName(r.fullName), tostring(r.level or "?"), W.Plain(W.ClassName(r.cls)), W.Num(r.gs), W.Num(FS:GetValue(r, "kills")),
         W.Num(FS:GetValue(r, "deaths")), nemesis and (" (nemesis: " .. nemesis .. ")") or "",
         W.Plain(W.Distance(FS:GetValue(r, "travelTotal"))), W.Plain(W.Duration(r.playtime)))
+end
+
+function Inspector:UpdatePin()
+    if not self.pinBtn or not self.rec then return end
+    local pinned = false
+    for _, key in ipairs(FS.db.profile.pins) do if key == self.rec.fullName then pinned = true end end
+    self.pinBtn.text:SetText(W.T(pinned and "Unpin" or "Pin"))
+    self.pinBtn:SetActive(pinned)
 end

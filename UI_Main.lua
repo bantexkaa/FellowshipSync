@@ -51,6 +51,16 @@ UI.CLASS_COLORS = {
 UI.currentScope = "solo"
 UI.timeMode = "all"
 
+-- Main-tab groups (each page stays a module; groups just bundle them).
+UI.GROUPS = {
+    { label = "Leaderboards", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01", mods = { "Dashboard", "Combat", "Misc", "FactionWar" } },
+    { label = "Players",      icon = "Interface\\Icons\\INV_Misc_Head_Human_01",  mods = { "Profiles", "Records" } },
+    { label = "History",      icon = "Interface\\Icons\\INV_Misc_Book_09",         mods = { "Deathlog", "Chronicle" } },
+    { label = "Fellowship",   icon = "Interface\\Icons\\Spell_Holy_PrayerOfHealing", mods = { "FellowshipUI" } },
+    { label = "Guild",        icon = "Interface\\Icons\\INV_BannerPVP_02",          mods = { "GuildUI" } },
+    { label = "Options",      icon = "Interface\\Icons\\INV_Misc_Gear_01",          mods = { "Options" } },
+}
+
 -- The tabs, in order. Each module implements :Build(parent) -> sets .frame, and :Refresh().
 UI.VIEWS = {
     { label = "Hall of Fame", mod = "Dashboard" },
@@ -166,15 +176,45 @@ function UI:InitializeFrame()
     close:SetPoint("TOPRIGHT", -4, -4)
     close:SetScript("OnClick", function() f:Hide() end)
 
-    -- Main tabs.
-    self.tabs = {}
-    local tabWidth = (self:ContentWidth() - 6 * 4) / #self.VIEWS
-    for i, v in ipairs(self.VIEWS) do
-        local tab = W.Button(f, v.label, tabWidth, 28, function() UI:SelectTab(i) end)
-        tab:SetPoint("TOPLEFT", f, "TOPLEFT", 15 + (i - 1) * (tabWidth + 4), -42)
-        tab.text:SetFontObject(#self.VIEWS > 10 and GameFontHighlightSmall or GameFontHighlight)
-        self.tabs[i] = tab
+    -- Main tabs: six groups; a group with several pages gets a section row below it.
+    self.modIndex = {}
+    for i, v in ipairs(self.VIEWS) do self.modIndex[v.mod] = i end
+    self.groupOf, self.lastInGroup = {}, {}
+    for g, group in ipairs(self.GROUPS) do
+        for _, mod in ipairs(group.mods) do if self.modIndex[mod] then self.groupOf[self.modIndex[mod]] = g end end
     end
+    for i in ipairs(self.VIEWS) do -- anything not grouped gets its own group
+        if not self.groupOf[i] then
+            table.insert(self.GROUPS, { label = self.VIEWS[i].label, mods = { self.VIEWS[i].mod } })
+            self.groupOf[i] = #self.GROUPS
+        end
+    end
+    self.groupTabs = {}
+    local groupWidth = (self:ContentWidth() - (#self.GROUPS - 1) * 4) / #self.GROUPS
+    for g, group in ipairs(self.GROUPS) do
+        local tab = W.Button(f, group.label, groupWidth, 28, function() UI:SelectGroup(g) end)
+        tab:SetPoint("TOPLEFT", f, "TOPLEFT", 15 + (g - 1) * (groupWidth + 4), -42)
+        tab.text:SetFontObject(GameFontHighlight)
+        if group.icon then
+            tab.icon = tab:CreateTexture(nil, "ARTWORK")
+            tab.icon:SetSize(18, 18)
+            tab.icon:SetPoint("LEFT", 10, 0)
+            tab.icon:SetTexture(group.icon)
+            tab.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        end
+        self.groupTabs[g] = tab
+    end
+    -- Section row: the pages of the selected group
+    self.tabs = {}
+    for i, v in ipairs(self.VIEWS) do
+        local b = W.Button(f, v.label, 130, 22, function() UI:SelectTab(i) end)
+        b.text:SetFontObject(GameFontHighlightSmall)
+        b:Hide()
+        self.tabs[i] = b
+    end
+    -- Search everything
+    self.globalSearch = W.Search(f, 240, "Search everything...", function(q) FS.GlobalSearch:Show(q) end)
+    self.globalSearch:SetPoint("TOPRIGHT", f, "TOPRIGHT", -20, -76)
 
     -- A coloured connector from the active tab down into the page.
     self.tabConnector = f:CreateTexture(nil, "OVERLAY")
@@ -182,7 +222,7 @@ function UI:InitializeFrame()
 
     -- Content area, news ticker and status line.
     local content = W.Box(f, "panel")
-    content:SetPoint("TOPLEFT", f, "TOPLEFT", 15, -74)
+    content:SetPoint("TOPLEFT", f, "TOPLEFT", 15, -104)
     content:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -15, 34)
     self.ContentFrame = content
     -- Share / Export for whatever you're looking at
@@ -202,6 +242,19 @@ function UI:InitializeFrame()
         if mod and mod.Build then
             mod:Build(content)
             if mod.frame then mod.frame:SetAllPoints(content); mod.frame:Hide() end
+            -- A "?" next to the page title explains what it shows and how it's counted
+            if mod.title and FS.HELP then
+                local help = W.Button(mod.frame, "?", 20, 20)
+                help:SetPoint("LEFT", mod.title, "RIGHT", 8, 0)
+                help:SetScript("OnEnter", function(btn)
+                    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+                    GameTooltip:AddLine(W.Plain(mod.title:GetText() or ""), 1, 0.82, 0)
+                    GameTooltip:AddLine(FS.HelpText(v.mod, mod.current), 1, 1, 1, true)
+                    GameTooltip:Show()
+                end)
+                help:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                mod.helpButton = help
+            end
         end
     end
     FS.Inspector:Build(content)
@@ -228,8 +281,22 @@ end
 function UI:UpdateButtons()
     for _, b in ipairs(self.scopeButtons or {}) do b:SetActive(b.id == self.currentScope) end
     for _, b in ipairs(self.timeButtons or {}) do b:SetActive(b.id == self.timeMode) end
-    for i, t in ipairs(self.tabs or {}) do t:SetActive(i == self.currentTab and not self.inspecting) end
-    local active = self.tabs and self.tabs[self.currentTab]
+    local group = self.groupOf and self.groupOf[self.currentTab] or 1
+    for g, t in ipairs(self.groupTabs or {}) do t:SetActive(g == group and not self.inspecting) end
+    -- section row: the selected group's pages (only when it has more than one)
+    local x = 0
+    local mods = self.GROUPS[group] and self.GROUPS[group].mods or {}
+    for i, b in ipairs(self.tabs or {}) do
+        local inGroup = self.groupOf[i] == group and #mods > 1
+        b:SetShown(inGroup)
+        if inGroup then
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", self.MainFrame, "TOPLEFT", 15 + x, -76)
+            x = x + 134
+            b:SetActive(i == self.currentTab and not self.inspecting)
+        end
+    end
+    local active = self.groupTabs and self.groupTabs[group]
     if self.tabConnector and active then
         local pal = self:GetActivePalette()
         self.tabConnector:ClearAllPoints()
@@ -238,13 +305,21 @@ function UI:UpdateButtons()
         self.tabConnector:SetColorTexture(pal.accent[1], pal.accent[2], pal.accent[3], 1)
         self.tabConnector:SetShown(not self.inspecting)
     end
-    -- Unread guild notices show on the Guild tab.
-    for i, v in ipairs(self.VIEWS) do
-        if v.mod == "GuildUI" and self.tabs and self.tabs[i] then
-            local unread = FS.Officer.UnreadNotices and FS.Officer:UnreadNotices() or 0
-            self.tabs[i].text:SetText(unread > 0 and string.format("%s (%d)", W.T("Guild"), unread) or W.T("Guild"))
+    -- Unread guild notices show on the Guild group.
+    for g, grp in ipairs(self.GROUPS or {}) do
+        for _, mod in ipairs(grp.mods) do
+            if mod == "GuildUI" and self.groupTabs and self.groupTabs[g] then
+                local unread = FS.Officer.UnreadNotices and FS.Officer:UnreadNotices() or 0
+                self.groupTabs[g].text:SetText(unread > 0 and string.format("%s (%d)", W.T(grp.label), unread) or W.T(grp.label))
+            end
         end
     end
+end
+
+function UI:SelectGroup(g)
+    local group = self.GROUPS[g]
+    if not group then return end
+    self:SelectTab(self.lastInGroup[g] or self.modIndex[group.mods[1]] or 1)
 end
 
 function UI:SetScope(scope, silent)
@@ -269,6 +344,7 @@ end
 
 function UI:SelectTab(index)
     self.currentTab = index or 1
+    if self.groupOf and self.groupOf[self.currentTab] then self.lastInGroup[self.groupOf[self.currentTab]] = self.currentTab end
     self.inspecting = false
     self:HideAllViews()
     local mod = FS[self.VIEWS[self.currentTab].mod]

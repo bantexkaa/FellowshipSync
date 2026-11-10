@@ -47,7 +47,7 @@ function Options:Build(parentFrame)
     -- FIX: was "Flow". An AceGUI ScrollFrame must sit in a "Fill" container,
     -- otherwise it gets no height and nothing shows.
     tabGroup:SetLayout("Fill")
-    tabGroup:SetTabs({
+    self.fullTabs = {
         { text = FellowshipSync.W.T("Cosmetics & UI"), value = "cosmetics" },
         { text = FellowshipSync.W.T("Notifications"),  value = "notify" },
         { text = FellowshipSync.W.T("Fellowship"),     value = "fellowship" },
@@ -55,7 +55,17 @@ function Options:Build(parentFrame)
         { text = FellowshipSync.W.T("Data Privacy"),   value = "privacy" },
         { text = FellowshipSync.W.T("Profiles"),       value = "profiles" },
         { text = FellowshipSync.W.T("Database Tools"), value = "tools" }
-    })
+    }
+    -- Simple (Basics) or Advanced (all tabs), switched with the button at the top right
+    self.modeButton = FellowshipSync.W.Button(baseFrame, "", 190, 22, function()
+        local prof = FellowshipSync.db.profile
+        prof.optionsMode = (prof.optionsMode == "advanced") and "simple" or "advanced"
+        self:ApplyMode()
+    end)
+    self.modeButton:SetPoint("TOPRIGHT", baseFrame, "TOPRIGHT", -12, -6)
+    self.modeButton:SetFrameLevel((baseFrame:GetFrameLevel() or 1) + 50)
+    self.tabGroup = tabGroup
+    self:ApplyMode(true)
     tabGroup:SetCallback("OnGroupSelected", function(container, _, group)
         self.currentGroup = group
         self:DrawGroup(container, group)
@@ -213,6 +223,59 @@ local function AddLabel(scroll, text)
     return l
 end
 
+function Options:ApplyMode(silent)
+    local simple = FellowshipSync.db.profile.optionsMode ~= "advanced"
+    self.tabGroup:SetTabs(simple and { { text = FellowshipSync.W.T("Basics"), value = "basics" } } or self.fullTabs)
+    self.modeButton.text:SetText(FellowshipSync.W.T(simple and "Show all settings (Advanced)" or "Show fewer settings (Simple)"))
+    if simple then self.currentGroup = "basics"
+    elseif self.currentGroup == "basics" or not self.currentGroup then self.currentGroup = "cosmetics" end
+    if not silent then self.tabGroup:SelectTab(self.currentGroup) end
+end
+
+-- The settings most people change, on one page.
+function Options:DrawBasics(scroll, profile, container, group)
+    local FS = FellowshipSync
+    local Style = FS.Style
+    local redraw = function() self:DrawGroup(container, group) end
+    AddHeading(scroll, "Look")
+    for i, preset in ipairs(Style.PRESETS) do
+        AddButton(scroll, preset[1], 110, function() Style:ApplyPreset(i); redraw() end)
+    end
+    local themes = ThemeList()
+    local t = AceGUI:Create("Dropdown")
+    t:SetLabel(FS.W.T("Colour Theme"))
+    t:SetWidth(260)
+    t:SetList(themes)
+    t:SetValue(IndexOf(themes, profile.theme))
+    t:SetCallback("OnValueChanged", function(_, _, key) profile.theme = themes[key]; Apply() end)
+    scroll:AddChild(t)
+    AddCheck(scroll, "Colour-blind friendly colours (blue/orange instead of green/red)", profile.colorblind,
+        function(v) profile.colorblind = v; Apply() end, 420)
+    AddCheck(scroll, "Show the minimap button", not profile.minimap.hide, function(v)
+        profile.minimap.hide = not v
+        FS.Extras:UpdateMinimapButton()
+    end, 420)
+    AddHeading(scroll, "Window")
+    local pages = { { "last", "Where I left off" } }
+    for _, v in ipairs(FS.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end
+    AddChoice(scroll, "Open on", pages, profile.startTab or "last", function(v) profile.startTab = v end, 260)
+    AddChoice(scroll, "Open in view", { { "last", "Where I left off" }, { "solo", "My Characters" }, { "guild", "Guild" },
+        { "network", "Network" }, { "netaccs", "Accounts" } }, profile.startScope or "last", function(v) profile.startScope = v end, 260)
+    AddChoice(scroll, "Distances", { { "metric", "Metres / kilometres" }, { "imperial", "Yards / miles" } },
+        profile.distanceUnits or "metric", function(v) profile.distanceUnits = v; Apply() end, 260)
+    AddHeading(scroll, "Notifications")
+    local n = profile.notify
+    AddCheck(scroll, "Show toasts", n.toasts, function(v) n.toasts = v end, 420)
+    AddChoice(scroll, "My level-ups", { { "tens", "Every 10 levels + max" }, { "all", "Every level" }, { "max", "Max level only" }, { "off", "Off" } },
+        n.own.level, function(v) n.own.level = v end, 260)
+    AddChoice(scroll, "Guild boss kills", { { "first", "Guild firsts only" }, { "all", "Every first kill" }, { "off", "Off" } },
+        n.guild.boss, function(v) n.guild.boss = v end, 260)
+    AddHeading(scroll, "Sharing")
+    AddCheck(scroll, "Share with my guild", profile.syncGuild ~= false, function(v) profile.syncGuild = v end, 420)
+    AddCheck(scroll, "Share with my Battle.net friends", profile.syncBNet ~= false, function(v) profile.syncBNet = v end, 420)
+    AddCheck(scroll, "Show FellowshipSync stats in the game tooltip", profile.unitTooltip ~= false, function(v) profile.unitTooltip = v end, 420)
+end
+
 function Options:DrawGroup(container, group)
     container:ReleaseChildren()
     local profile = FellowshipSync.db.profile
@@ -221,7 +284,9 @@ function Options:DrawGroup(container, group)
     scroll:SetLayout("Flow")
     container:AddChild(scroll)
 
-    if group == "cosmetics" then
+    if group == "basics" then
+        self:DrawBasics(scroll, profile, container, group)
+    elseif group == "cosmetics" then
         local Style = FellowshipSync.Style
         local redraw = function() Apply(); self:DrawGroup(container, group) end
 
@@ -310,6 +375,17 @@ function Options:DrawGroup(container, group)
         if not (LibStub and LibStub("LibSharedMedia-3.0", true)) then
             AddLabel(scroll, "|cff888888Tip: with SharedMedia (or ElvUI) installed, its fonts, borders and backgrounds appear in these lists too.|r")
         end
+
+        AddHeading(scroll, "Window & Lists")
+        AddCheck(scroll, "Colour-blind friendly colours (blue/orange instead of green/red)", profile.colorblind,
+            function(v) profile.colorblind = v; Apply() end, 420)
+        AddCheck(scroll, "Show pinned players (your rival and pins) at the top of leaderboards", profile.showPins ~= false,
+            function(v) profile.showPins = v; Apply() end, 420)
+        local pages = { { "last", "Where I left off" } }
+        for _, v in ipairs(FellowshipSync.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end
+        AddChoice(scroll, "Open on", pages, profile.startTab or "last", function(v) profile.startTab = v end, 260)
+        AddChoice(scroll, "Open in view", { { "last", "Where I left off" }, { "solo", "My Characters" }, { "guild", "Guild" },
+            { "network", "Network" }, { "netaccs", "Accounts" } }, profile.startScope or "last", function(v) profile.startScope = v end, 260)
 
         AddHeading(scroll, "Distance")
         local UNITS = { "metric", "imperial" }

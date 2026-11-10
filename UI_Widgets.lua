@@ -119,7 +119,12 @@ end
 W.QUALITY_HEX = { [0] = "9d9d9d", [1] = "ffffff", [2] = "1eff00", [3] = "0070dd", [4] = "a335ee", [5] = "ff8000", [6] = "e6cc80", [7] = "00ccff" }
 W.RANK_HEX = { "ffd100", "d8d8d8", "e0884a" }
 
-function W.Color(text, hex) return "|cff" .. hex .. tostring(text) .. "|r" end
+local COLORBLIND = { ["1eff00"] = "40a0ff", ["40ff40"] = "40a0ff", ["00ff00"] = "40a0ff", ["1eff40"] = "40a0ff",
+                     ["ff5555"] = "ffa040", ["ff4040"] = "ffa040", ["ff0000"] = "ffa040", ["ff3333"] = "ffa040" }
+function W.Color(text, hex)
+    if FS.db and FS.db.profile.colorblind then hex = COLORBLIND[tostring(hex):lower()] or hex end
+    return "|cff" .. hex .. tostring(text) .. "|r"
+end
 
 function W.ClassHex(cls)
     local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls or ""]
@@ -682,7 +687,55 @@ function W.List(parent, columns, opts)
             rows = sorted
         end
         self.shownRows = rows
-        self:Render(rows)
+        local render = rows
+        if self.columns[1].label == "#" and #rows > 0 and rows[1].rec and rows[1].rec.fullName then
+            if not st then self:RankArrows(rows) end
+            render = self:WithPins(rows)
+        end
+        self:Render(render)
+    end
+
+    -- Weekly movement on leaderboards: "+2" / "-1" next to the rank (since the start of the week).
+    function list:RankArrows(rows)
+        local g = FS.db.global
+        g.rankBase = g.rankBase or {}
+        local key = self.id .. ":" .. tostring(FS.UI.currentScope) .. ":" .. (FS:IsWeekMode() and "w" or "a")
+        local week = FS.WeekIndex(FS:WeekStart())
+        local base = g.rankBase[key]
+        local now = {}
+        for i, data in ipairs(rows) do if data.rec and data.rec.fullName and i <= 400 then now[data.rec.fullName] = i end end
+        if not base or base.w ~= week then
+            g.rankBase[key] = { w = week, r = now }
+            return
+        end
+        for i, data in ipairs(rows) do
+            local before = data.rec and base.r[data.rec.fullName]
+            if before and before ~= i then
+                local move = before - i
+                data.cells[1] = W.Rank(i) .. " " .. W.Color((move > 0 and "+" or "") .. move, move > 0 and "1eff00" or "ff5555")
+            end
+        end
+    end
+
+    -- Pinned players (your rival and anyone you pin in the Inspector) also appear at the top.
+    function list:WithPins(rows)
+        if FS.db.profile.showPins == false then return rows end
+        local pins = {}
+        for _, key in ipairs(FS.db.profile.pins or {}) do pins[key] = true end
+        if FS.db.char.rival then pins[FS.db.char.rival] = true end
+        if not next(pins) then return rows end
+        local out = {}
+        for i, data in ipairs(rows) do
+            if i > 3 and data.rec and pins[data.rec.fullName] then
+                local cells = {}
+                for c, v in ipairs(data.cells) do cells[c] = v end
+                cells[2] = W.Color(W.T("Pinned") .. "  ", "ffd100") .. (cells[2] or "")
+                table.insert(out, { rec = data.rec, cells = cells, pinned = true })
+            end
+        end
+        if #out == 0 then return rows end
+        for _, data in ipairs(rows) do table.insert(out, data) end
+        return out
     end
 
     function list:Render(rows)
@@ -699,7 +752,10 @@ function W.List(parent, columns, opts)
             local shade = (i % 2 == 0) and 0.085 or 0.06
             row:SetBackdropColor(shade, shade, shade + 0.01, 0.8)
             row:SetBackdropBorderColor(0, 0, 0, 0)
-            if data.isSelf then
+            if data.pinned then
+                row.selfBar:SetColorTexture(1, 0.82, 0, 0.9)
+                row:SetBackdropColor(0.18, 0.15, 0.04, 0.9)
+            elseif data.isSelf then
                 row.selfBar:SetColorTexture(pal.accent[1], pal.accent[2], pal.accent[3], 0.9)
                 row:SetBackdropColor(pal.accent[1] * 0.12, pal.accent[2] * 0.12, pal.accent[3] * 0.12, 0.9)
             else
@@ -709,6 +765,7 @@ function W.List(parent, columns, opts)
         end
         for i = #rows + 1, #self.pool do self.pool[i]:Hide(); self.pool[i].rec = nil end
         content:SetHeight(math.max(10, #rows * (self.rowHeight + 2)))
+        if #rows == 0 and not self.opts.emptyText then self.empty:SetText(W.EmptyHint()) end
         self.empty:SetShown(#rows == 0)
         self:FitColumns(#rows)
     end
@@ -763,6 +820,19 @@ function W.List(parent, columns, opts)
 end
 
 W.lists = setmetatable({}, { __mode = "k" })
+
+-- Why a list is empty, and what to do about it.
+function W.EmptyHint()
+    local UI = FS.UI
+    if FS:IsWeekMode() then return W.T("Nothing yet this week. Switch to All-Time to see everything.") end
+    if UI.currentScope == "solo" then return W.T("Nothing recorded for your characters yet. Just play: it fills up on its own.") end
+    local others = 0
+    for _, r in pairs(FS.db.global.characters) do if not r.isMyChar then others = others + 1 end end
+    if others == 0 then
+        return W.T("Nobody else uses FellowshipSync yet. Tell your guild: it's on CurseForge as FellowshipSync. Or try /fsync test.")
+    end
+    return W.T("Nothing to show here yet.")
+end
 
 -- "crossed 1,000 Jumps", "travelled 10.0 km", "looted 100g"
 function W.MilestoneText(key, value)
