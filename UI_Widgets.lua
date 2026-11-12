@@ -1011,6 +1011,8 @@ function W.EventText(ev)
         return W.Color("REST IN PEACE:", "aaaaaa"),
             string.format("%s fell for good at level %d in %s.", who, tonumber(ev.v) or 0, ev.z or "an unknown place"),
             "Interface\\Icons\\Spell_Holy_GuardianSpirit"
+    elseif ev.kind == "fun" then
+        return W.Color((ev.title or "FUN") .. ":", "ff9ad5"), tostring(ev.a or ""), "Interface\\Icons\\INV_Misc_Toy_07"
     elseif ev.kind == "accmilestone" then
         return W.Color("ACCOUNT:", "ffaa33"), "Your characters together " .. W.MilestoneText(ev.a, ev.v) .. "!",
             "Interface\\Icons\\Achievement_Quests_Completed_08"

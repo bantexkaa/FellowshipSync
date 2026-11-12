@@ -55,6 +55,7 @@ end
 function Notify:WantOwnToast(ev)
     local own = self:Settings().own
     if ev.kind == "accmilestone" then return own.account ~= false end
+    if ev.kind == "fun" then return own.fun ~= false end
     if ev.kind == "level" then
         local v = tonumber(ev.v) or 0
         return own.level == "all" or (own.level == "max" and v == FS:MaxLevel())
@@ -100,6 +101,7 @@ end
 
 -- title, description, icon for a toast. mine = your own event.
 function Notify:ToastText(ev, mine)
+    if ev.kind == "fun" then return ev.title or "Fun!", tostring(ev.a or ""), "Interface\\Icons\\INV_Misc_Toy_07" end
     local _, sentence, icon = W.EventText(ev)
     local rec = FS.db.global.characters[ev.who]
     local who = rec and W.CharName(rec) or FS.ShortName(ev.who)

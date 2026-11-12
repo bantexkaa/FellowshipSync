@@ -12,13 +12,43 @@ local TABS = {
     { id = "pvp",      label = "PvP" },
     { id = "social",   label = "Social" },
     { id = "habits",   label = "Habits" },
+    { id = "shame",    label = "Shame" },
+    { id = "luck",     label = "Luck" },
     { id = "compare",  label = "Compare" },
 }
 local TOP = -84
 
 -- Column sets for the simple ranked lists: { label, key or function(rec), width }
 local function V(key) return function(r) return W.FormatStat(key, FS:GetValue(r, key)) end end
+local function Pct(n, d) return d > 0 and string.format("%d%%", math.floor(n / d * 100 + 0.5)) or "-" end
+local function WalkedShare(r)
+    local foot, ride = FS:GetValue(r, "travelFootLate"), FS:GetValue(r, "travelMountLate")
+    return foot + ride, foot
+end
+local function RollRate(r)
+    local made = FS:GetValue(r, "needRolls") + FS:GetValue(r, "greedRolls")
+    local won = FS:GetValue(r, "wonNeed") + FS:GetValue(r, "wonGreed")
+    return made, won
+end
 local LISTS = {
+    shame = { title = "Hall of Shame", sort = function(r) return FS:GetValue(r, "embarrassingDeaths") + FS:GetValue(r, "leapsOfFaith") end,
+              cols = { { "Embarrassing", V("embarrassingDeaths") }, { "Leaps of Faith", V("leapsOfFaith") },
+                       { "Biggest Fall", function(r) local v = tonumber(r.highestFall) or 0 return v > 0 and (v .. "% hp") or "-" end },
+                       { "Hearth Regrets", V("hearthRegret") }, { "Biggest Repair", function(r) return W.Money(r.biggestRepair) end },
+                       { "Walked", function(r) local all, foot = WalkedShare(r) return Pct(foot, all) end },
+                       { "Spirit Healer", V("spiritHealer") }, { "Corpse Runs", V("corpseRuns") } } },
+    luck = { title = "Luck & Revenge", sort = function(r) return FS:GetValue(r, "revengeKills") end,
+             cols = { { "Revenge Kills", V("revengeKills") },
+                      { "Roll Win Rate", function(r) local made, won = RollRate(r) return Pct(won, made) end },
+                      { "vs Guild", function(r)
+                          local made, won = RollRate(r)
+                          local avg = Records.luckAvg
+                          if made == 0 or not avg then return "-" end
+                          local diff = math.floor((won / made - avg) * 100 + 0.5)
+                          return W.Color((diff > 0 and "+" or "") .. diff .. "%", diff >= 0 and "1eff00" or "ff5555") end },
+                      { "Natural 1s", V("rolls1") }, { "Natural 100s", V("rolls100") },
+                      { "Rolls Lost", function(r) local made, won = RollRate(r) return W.Num(math.max(0, made - won)) end },
+                      { "Levels from Rest", function(r) local v = tonumber(r.restedLevels) or 0 return v > 0 and W.Decimal(v) or "-" end } } },
     loot = { title = "Loot by Quality", sort = function(r)
                 local t = 0
                 for _, k in ipairs({ "lootQ0", "lootQ1", "lootQ2", "lootQ3", "epics", "lootQ5" }) do t = t + FS:GetValue(r, k) end
@@ -110,12 +140,21 @@ function Records:Refresh()
     end
     local def = LISTS[self.current]
     self.title:SetText(def.title .. suffix)
-    self.sub:SetText(self.current == "survival" and FS.HAS_COMBAT_LOG and "Close calls (survived below 10% health) are in each character's Inspector."
-        or "Click a character to inspect them.")
+    local subs = {
+        shame = "Embarrassing = killed by falling, drowning, lava, a critter or something 10+ levels lower. Leap of faith = died falling within 5 s of jumping. Walked = on foot after you could ride.",
+        luck = "Revenge = killing the kind of enemy that last killed you. vs Guild = your roll win rate compared with the guild average.",
+    }
+    self.sub:SetText(subs[self.current] or (self.current == "survival" and FS.HAS_COMBAT_LOG and "Close calls (survived below 10% health) are in each character's Inspector."
+        or "Click a character to inspect them."))
     for i = 1, 8 do self.list:SetColumnLabel(i + 2, def.cols[i] and def.cols[i][1] or "") end
     local recs = {}
     for _, r in ipairs(FS:GetFilteredCharacters(UI.currentScope)) do
         if W.Matches(r, self.query) then table.insert(recs, r) end
+    end
+    if self.current == "luck" then -- the guild's average roll win rate, for "vs Guild"
+        local made, won = 0, 0
+        for _, r in ipairs(FS:GetScopeCharacters("guild")) do local m, w = RollRate(r); made, won = made + m, won + w end
+        self.luckAvg = made > 0 and won / made or nil
     end
     table.sort(recs, function(a, b)
         local x, y = def.sort(a), def.sort(b)

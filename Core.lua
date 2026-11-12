@@ -38,15 +38,15 @@ end
 local GAMES = {
     -- profSteps: profession ranks that count as milestones; the last one is "maxed".
     -- Retail professions are split per expansion (100 ranks each); Archaeology is not.
-    retail  = { name = "Retail",                    achievements = true,  combatLog = false, ilvlTop = 290, maxLevel = 90,
+    retail  = { name = "Retail",                    achievements = true,  combatLog = false, ilvlTop = 290, maxLevel = 90, mountLevel = 10,
                 splits = { 20, 40, 60, 80, 90 }, profSteps = { 25, 50, 75, 100 }, gsStep = 250 },
-    forever = { name = "WoW: Forever",              achievements = true,  combatLog = false, ilvlTop = 66,  maxLevel = 60, levels = { 25, 45 },
+    forever = { name = "WoW: Forever",              achievements = true,  combatLog = false, ilvlTop = 66,  maxLevel = 60, mountLevel = 40, levels = { 25, 45 },
                 splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 50, 100, 150, 200, 250, 300 }, gsStep = 50 },
-    era     = { name = "Classic Era",               achievements = false, combatLog = true,  ilvlTop = 66,  maxLevel = 60,
+    era     = { name = "Classic Era",               achievements = false, combatLog = true,  ilvlTop = 66,  maxLevel = 60, mountLevel = 40,
                 splits = { 10, 20, 30, 40, 50, 60 }, profSteps = { 50, 100, 150, 200, 250, 300 }, gsStep = 50 },
-    tbc     = { name = "TBC Anniversary",           achievements = false, combatLog = true,  ilvlTop = 141, maxLevel = 70, levels = { 60 },
+    tbc     = { name = "TBC Anniversary",           achievements = false, combatLog = true,  ilvlTop = 141, maxLevel = 70, mountLevel = 30, levels = { 60 },
                 splits = { 20, 40, 60, 65, 70 }, profSteps = { 50, 100, 150, 200, 250, 300, 350, 375 }, gsStep = 100 },
-    mists   = { name = "Mists of Pandaria Classic", achievements = true,  combatLog = true,  ilvlTop = 496, maxLevel = 90, levels = { 85 },
+    mists   = { name = "Mists of Pandaria Classic", achievements = true,  combatLog = true,  ilvlTop = 496, maxLevel = 90, mountLevel = 20, levels = { 85 },
                 splits = { 20, 40, 60, 80, 85, 90 }, profSteps = { 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600 }, gsStep = 250 },
 }
 FellowshipSync.GAME = DetectGame()
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.8.0"
+local FALLBACK_VERSION = "3.9.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -238,6 +238,16 @@ FellowshipSync.STATS = {
     bestStreak       = { label = "Best Daily Streak", fmt = "num",   agg = "max" },
     longestSession   = { label = "Longest Session",   fmt = "duration", agg = "max" },
     longestLife      = { label = "Longest Life",      fmt = "duration", agg = "max" },
+    -- Funny stats (3.9)
+    embarrassingDeaths = { label = "Embarrassing Deaths", fmt = "num",   weekly = true },
+    leapsOfFaith       = { label = "Leaps of Faith",      fmt = "num",   weekly = true },
+    hearthRegret       = { label = "Hearthstone Regrets", fmt = "num",   weekly = true },
+    revengeKills       = { label = "Revenge Kills",       fmt = "num",   weekly = true },
+    travelFootLate     = { label = "Walked (could ride)", fmt = "distance", weekly = true },
+    travelMountLate    = { label = "Rode (could ride)",   fmt = "distance", weekly = true },
+    highestFall        = { label = "Biggest Fall Survived", fmt = "num", agg = "max" },
+    biggestRepair      = { label = "Biggest Repair",      fmt = "money", agg = "max" },
+    restedLevels       = { label = "Levels from Rest",    fmt = "num",   agg = "sum" },
     crafted     = { label = "Items Crafted",      fmt = "num",      weekly = true },
 }
 -- Counters the tracker owns per character (everything weekly).
@@ -284,6 +294,8 @@ FellowshipSync.HOF_WIDGETS = {
     { id = "potions",  key = "potions",     title = "Chug Champions",     on = false },
     { id = "night",    key = "nightTime",   title = "Night Owls",         on = false },
     { id = "emotes",   key = "emotes",      title = "Most Emotes",        on = false },
+    { id = "shame",    key = "embarrassingDeaths", title = "Hall of Shame", on = false },
+    { id = "revenge",  key = "revengeKills", title = "Avengers",          on = false },
 }
 
 if not FellowshipSync.HAS_POINTS then
@@ -355,7 +367,7 @@ local defaults = {
         notify = {
             toasts = true,
             -- Your own events. level: "all" | "max" | "off"
-            own = { level = "tens", account = true, legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
+            own = { level = "tens", account = true, fun = true, legacy = true, gear = true, prof = true, milestone = true, boss = true, record = true, fallen = true,
                     bounty = true, wager = true, onthisday = true },
             -- Guildmates' and friends' events. boss: "first" | "all" | "off"; level: "max" | "tens" | "off"
             guild = { boss = "first", level = "max", legacy = false, fallen = true, death = false, record = true, prof = false,
@@ -731,6 +743,7 @@ function FellowshipSync:ToggleUI()
     local firstOpen = not UI.MainFrame
     UI:InitializeFrame()
     UI.MainFrame:Show()
+    self.Dashboard.fact = nil -- a new "Did you know?" each time the window opens
     -- Open on the chosen page and view (or wherever you left off)
     local prof = self.db.profile
     if prof.startScope and prof.startScope ~= "last" then UI:SetScope(prof.startScope, true) end

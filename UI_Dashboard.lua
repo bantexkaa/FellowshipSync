@@ -22,6 +22,9 @@ function Dashboard:Build(parent)
     self.chooseBtn:SetPoint("LEFT", self.title, "RIGHT", 14, 0)
     self.countText = W.Text(f, "GameFontDisableSmall")
     self.countText:SetPoint("LEFT", self.chooseBtn, "RIGHT", 10, 0)
+    self.factText = W.Text(f, "GameFontHighlightSmall", "RIGHT")
+    self.factText:SetPoint("TOPRIGHT", -36, -16)
+    self.factText:SetWidth(560)
 
     local items = {}
     for _, s in ipairs(UI.SCOPES) do table.insert(items, { id = s.id, label = UI.SCOPE_TITLES[s.id] }) end
@@ -275,6 +278,10 @@ function Dashboard:CardValue(widget, rec)
 end
 
 function Dashboard:Refresh()
+    if self.factText then
+        if not self.fact then self.fact = FS.FunFact() end
+        self.factText:SetText(self.fact and (W.Color(W.T("Did you know?") .. " ", "ffd100") .. self.fact) or "")
+    end
     if not self.frame then return end
     local scope = UI.currentScope
     local state = WidgetState(scope)
@@ -344,4 +351,39 @@ function Dashboard:Refresh()
     end
     for i = index + 1, #self.cards do self.cards[i]:Hide() end
     self.grid:SetHeight(math.max(100, math.ceil(index / COLS) * (CARD_H + GAP)))
+end
+
+---------------------------------------------------------------------------
+-- "Did you know?": a random fun fact from your own numbers, new each time
+-- the window opens.
+---------------------------------------------------------------------------
+
+function FS.FunFact()
+    local me = FS:GetMyRecord()
+    if not me then return nil end
+    local facts = {}
+    local function add(cond, text) if cond then table.insert(facts, text) end end
+    local jumps = FS:GetValue(me, "jumps")
+    add(jumps >= 100, string.format("You have jumped %s times. Stacked up, that's %s straight up.", W.Num(jumps), W.Plain(W.Distance(jumps * 1.3))))
+    local foot = FS:GetValue(me, "travelFoot")
+    add(foot >= 42195, string.format("You have walked %s: about %s marathons.", W.Plain(W.Distance(foot)), W.Num(math.floor(foot / 42195))))
+    local nemesis, n = nil, 0
+    for name, count in pairs(me.killers or {}) do if count > n then nemesis, n = name, count end end
+    add(nemesis and n >= 3, string.format("%s has killed you %d times. It's personal now.", tostring(nemesis), n))
+    local critters = FS:GetValue(me, "critters")
+    add(critters >= 10, string.format("%s critters have fallen to you. The squirrels are organising.", W.Num(critters)))
+    local fish = FS:GetValue(me, "fish")
+    add(fish >= 20, string.format("You have caught %s fish. That's a lot of chowder.", W.Num(fish)))
+    local played = tonumber(me.playtime) or 0
+    add(played >= 86400, string.format("You have played %s: that's %s full nights of sleep.", W.Plain(W.Duration(played)), W.Num(math.floor(played / 28800))))
+    local looted, repairs = FS:GetValue(me, "goldLooted"), FS:GetValue(me, "repairs")
+    add(looted > 0 and repairs > 0, string.format("You have looted %s. Repairs took %s of it.", W.Plain(W.Money(looted)), W.Plain(W.Money(repairs))))
+    local chat = FS:GetValue(me, "chat")
+    add(chat >= 1000, string.format("You have sent %s chat messages. That's roughly a short novel.", W.Num(chat)))
+    local ghost = FS:GetValue(me, "corpseDistance")
+    add(ghost >= 1000, string.format("You have run %s as a ghost.", W.Plain(W.Distance(ghost))))
+    local regrets = FS:GetValue(me, "hearthRegret")
+    add(regrets >= 1, string.format("You have hearthed and come straight back %s time%s. We've all been there.", W.Num(regrets), regrets == 1 and "" or "s"))
+    if #facts == 0 then return nil end
+    return facts[math.random(1, #facts)]
 end

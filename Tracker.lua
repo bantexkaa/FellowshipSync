@@ -92,7 +92,7 @@ local MILESTONE_STATS = {}
 for _, key in ipairs({ "kills", "deaths", "quests", "critters", "fish", "jumps", "bossKills", "duelsWon", "epics", "hearths",
                        "areasDiscovered", "flightPathsFound", "flightRides", "corpseRuns", "emotes", "potions", "foodDrink",
                        "bandages", "trades", "mailsSent", "whispersSent", "rollsWon", "crafted", "gathered", "instanceRuns",
-                       "fights", "pvpKills", "fallDeaths" }) do
+                       "fights", "pvpKills", "fallDeaths", "revengeKills", "embarrassingDeaths" }) do
     table.insert(MILESTONE_STATS, { key, Ladder, AccountLadder })
 end
 table.insert(MILESTONE_STATS, { "chat", ChatLadder, AccountLadder })
@@ -230,7 +230,7 @@ function Tracker:Enable()
         "UNIT_SPELLCAST_SUCCEEDED", "PLAYER_TARGET_CHANGED", "MIRROR_TIMER_START", "MIRROR_TIMER_STOP",
         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "QUEST_TURNED_IN", "ENCOUNTER_START", "ENCOUNTER_END",
         "PLAYER_REGEN_DISABLED", "UI_INFO_MESSAGE", "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER", "CONFIRM_XP_LOSS",
-        "PLAYER_UNGHOST", "PLAYER_ALIVE", "UPDATE_BATTLEFIELD_SCORE", "RESURRECT_REQUEST",
+        "PLAYER_UNGHOST", "PLAYER_ALIVE", "UPDATE_BATTLEFIELD_SCORE", "RESURRECT_REQUEST", "PLAYER_XP_UPDATE",
     }
     LibStub("AceEvent-3.0"):Embed(self)
     for _, ev in ipairs(events) do FS.SafeRegister(self, ev) end
@@ -282,7 +282,7 @@ function Tracker:InstallHooks()
     self.hooked = true
 
     if JumpOrAscendStart then
-        hooksecurefunc("JumpOrAscendStart", function() self:Add("jumps") end)
+        hooksecurefunc("JumpOrAscendStart", function() self:Add("jumps"); self.lastJumpAt = GetTime() end)
     end
 
     local function OnChatSent(msg, chatType)
@@ -672,6 +672,9 @@ function Tracker:Snapshot()
     rec.curLife = c.life
     rec.records = r
     rec.biggestLoot = tonumber(st.biggestLoot) or 0
+    rec.highestFall = tonumber(st.highestFall) or 0
+    rec.biggestRepair = tonumber(st.biggestRepair) or 0
+    rec.restedLevels = math.floor((tonumber(st.restedLevels) or 0) * 100 + 0.5) / 100
     rec.companions = self:CountKeys(c.bonds)
     local hk = GetPVPLifetimeStats and Safe(GetPVPLifetimeStats)
     if tonumber(hk) then rec.honorKills = math.max(tonumber(rec.honorKills) or 0, hk) end
@@ -892,6 +895,31 @@ function Tracker:TickHabits(st)
     if ghost and not self.wasGhost then st.corpseRuns = (st.corpseRuns or 0) + 1 end
     self.wasGhost = ghost
     if not UnitIsDeadOrGhost("player") then c.life = (c.life or 0) + 1 end
+    -- Biggest fall survived: health lost from the start of a fall to the landing.
+    local hp, maxHp = Clean(UnitHealth("player")), Clean(UnitHealthMax("player"))
+    if hp and maxHp and maxHp > 0 then
+        if IsFalling and IsFalling() then
+            self.fallStartHP = self.fallStartHP or self.lastHP or hp
+        elseif self.fallStartHP then
+            local lost = self.fallStartHP - hp
+            if lost > 0 and hp > 0 then
+                local pct = math.floor(lost / maxHp * 100 + 0.5)
+                if pct > (tonumber(st.highestFall) or 0) then st.highestFall = pct end
+            end
+            self.fallStartHP = nil
+        end
+        self.lastHP = hp
+    end
+    -- Hearthstone regret: back where you hearthed from within 10 minutes.
+    local h = self.hearthFrom
+    if h then
+        if time() - h.t > 600 then self.hearthFrom = nil
+        elseif zone and zone ~= h.zone then h.left = true
+        elseif zone and h.left and zone == h.zone then
+            self:Add("hearthRegret")
+            self.hearthFrom = nil
+        end
+    end
 end
 
 -- Keep the last ~400 days.
@@ -954,8 +982,14 @@ function Tracker:TrackTravel(st, onTaxi)
                 st.travelSwim = (st.travelSwim or 0) + meters
             elseif IsMounted and IsMounted() then
                 st.travelMount = (st.travelMount or 0) + meters
+                if (tonumber(UnitLevel("player")) or 0) >= (FS.GAME_INFO.mountLevel or 40) then
+                    st.travelMountLate = (st.travelMountLate or 0) + meters
+                end
             else
                 st.travelFoot = (st.travelFoot or 0) + meters
+                if (tonumber(UnitLevel("player")) or 0) >= (FS.GAME_INFO.mountLevel or 40) then
+                    st.travelFootLate = (st.travelFootLate or 0) + meters
+                end
             end
         end
     end
@@ -1013,7 +1047,17 @@ function Tracker:CheckUnitDeath(unit)
     end
 end
 
+function Tracker:CheckRevenge(name)
+    local open = self.db.char.revengeOpen
+    if not open or type(name) ~= "string" or open.killer ~= name then return end
+    self.db.char.revengeOpen = nil
+    self:Add("revengeKills")
+    FS:AddEvent({ kind = "fun", who = FS:GetPlayerKey(), title = "Revenge!",
+                  a = string.format("You finally got back at %s.", name) })
+end
+
 function Tracker:CountKill(guid, name, isBoss)
+    self:CheckRevenge(name)
     local now = GetTime()
     if self.counted[guid] then return end
     self.counted[guid] = now
@@ -1086,19 +1130,35 @@ end
 function Tracker:MIRROR_TIMER_START(_, timer) if timer == "BREATH" then self.breathActive = true end end
 function Tracker:MIRROR_TIMER_STOP(_, timer) if timer == "BREATH" then self.breathActive = false end end
 
+-- Deaths that are a little embarrassing: the elements, critters, or something far below you.
+local ELEMENTS = { falling = true, drowning = true, lava = true, fatigue = true, slime = true, fire = true }
+function Tracker:ShameReason(killer)
+    local k = tostring(killer or ""):lower()
+    if ELEMENTS[k] then return k end
+    local info = self.killerInfo
+    if info and info.critter then return "a critter" end
+    local mine = tonumber(UnitLevel("player")) or 0
+    if info and tonumber(info.level) and info.level > 0 and info.level <= mine - 10 then return "something 10+ levels lower" end
+end
+
 function Tracker:GuessKiller()
+    self.killerInfo = nil
     local hit = self.CombatLog and self.CombatLog.lastHit
     if self.useCombatLog and hit and GetTime() - hit.at < 8 then
         local info = hit.guid and self.guidInfo[hit.guid]
         local desc = hit.spell and hit.spell ~= "" and string.format("%s, %s damage", hit.spell, tostring(hit.amount)) or ""
         if info and info.level then desc = string.format("Lvl %s - %s", info.level > 0 and info.level or "??", desc) end
+        self.killerInfo = info
         return hit.name, desc
     end
     if GetTime() - (self.lastFallingAt or -100) < 3 then return "Falling", "Gravity always wins" end
     if self.breathActive then return "Drowning", "Ran out of breath" end
     if UnitExists("target") and Clean(UnitCanAttack("player", "target")) and not Clean(UnitIsDead("target")) then
         local name = Clean(UnitName("target"))
-        if name then return name, self:DescribeTarget() end
+        if name then
+            self.killerInfo = { level = Clean(UnitLevel("target")), critter = Clean(UnitCreatureType("target")) == "Critter" }
+            return name, self:DescribeTarget()
+        end
     end
     local h = self.lastHostile
     if h and GetTime() - h.at < 30 then return h.name, h.desc end
@@ -1122,6 +1182,13 @@ function Tracker:PLAYER_DEAD()
             entry.map, entry.x, entry.y = mapID, math.floor(x * 1000 + 0.5) / 1000, math.floor(y * 1000 + 0.5) / 1000
         end
     end
+    local shame = self:ShameReason(killer)
+    if shame then
+        self:Add("embarrassingDeaths")
+        entry.kdesc = ((entry.kdesc and entry.kdesc ~= "") and (entry.kdesc .. " - ") or "") .. "Embarrassing: " .. shame
+    end
+    if killer == "Falling" and GetTime() - (self.lastJumpAt or -100) < 5 then self:Add("leapsOfFaith") end
+    c.revengeOpen = { killer = killer, t = entry.t } -- killing this kind of enemy later = revenge
     table.insert(c.deathLog, 1, entry)
     for i = #c.deathLog, 11, -1 do c.deathLog[i] = nil end
     c.killers[killer] = (c.killers[killer] or 0) + 1
@@ -1255,6 +1322,8 @@ function Tracker:UPDATE_INVENTORY_DURABILITY()
     local cost = GetRepairAllCost() or 0
     if cost < (self.repairCost or 0) then
         self:Add("repairs", self.repairCost - cost)
+        local bill = self.repairCost - cost
+        if bill > (tonumber(self:Stats().biggestRepair) or 0) then self:Stats().biggestRepair = bill end
         self.merchantRepairs = (self.merchantRepairs or 0) + (self.repairCost - cost)
     end
     self.repairCost = cost
@@ -1264,7 +1333,10 @@ local GATHER_SPELLS = { 2575, 2366, 8613 } -- Mining, Herb Gathering, Skinning
 function Tracker:UNIT_SPELLCAST_SUCCEEDED(_, unit, _, spellID)
     if unit ~= "player" or IsSecret(spellID) then return end
     local cast = SpellName(spellID)
-    if cast and (cast == SpellName(8690) or cast == "Hearthstone") then self:Add("hearths") end
+    if cast and (cast == SpellName(8690) or cast == "Hearthstone") then
+        self:Add("hearths")
+        self.hearthFrom = { zone = Clean(GetRealZoneText()), t = time(), left = false }
+    end
     if not self.gatherNames then
         self.gatherNames = { Mining = true, ["Herb Gathering"] = true, Skinning = true }
         for _, id in ipairs(GATHER_SPELLS) do
@@ -1293,12 +1365,30 @@ function Tracker:OnInfoText(msg)
 end
 function Tracker:UI_INFO_MESSAGE(_, a, b) self:OnInfoText(type(a) == "string" and a or b) end
 
+-- Rested XP: the bonus comes out of the rested pool, so the pool shrinking is the bonus.
+function Tracker:PLAYER_XP_UPDATE()
+    local pool = tonumber((Safe(GetXPExhaustion))) or 0
+    local maxXP = tonumber((Safe(UnitXPMax, "player"))) or 0
+    if self.lastRested and pool < self.lastRested and maxXP > 0 then
+        local st = self:Stats()
+        st.restedLevels = (tonumber(st.restedLevels) or 0) + (self.lastRested - pool) / maxXP
+    end
+    self.lastRested = pool
+end
+
 function Tracker:CHAT_MSG_WHISPER() self:Add("whispersReceived") end
 function Tracker:CHAT_MSG_BN_WHISPER() self:Add("whispersReceived") end
 function Tracker:RESURRECT_REQUEST() self:Add("rezzed") end
 function Tracker:CONFIRM_XP_LOSS() self.spiritAt = GetTime() end
 function Tracker:PLAYER_UNGHOST()
-    if self.spiritAt and GetTime() - self.spiritAt < 120 then self:Add("spiritHealer") end
+    if self.spiritAt and GetTime() - self.spiritAt < 120 then
+        self:Add("spiritHealer")
+        local n = tonumber(self:Stats().spiritHealer) or 0
+        if n > 0 and n % 10 == 0 then
+            FS:AddEvent({ kind = "fun", who = FS:GetPlayerKey(), title = "Spirit Healer Loyalty Card",
+                          a = string.format("Resurrection number %d is on the house! (Sadly, no refund.)", n) })
+        end
+    end
     self.spiritAt = nil
 end
 function Tracker:PLAYER_ALIVE() self:PLAYER_UNGHOST() end

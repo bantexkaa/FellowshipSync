@@ -20,6 +20,7 @@ local WEEKLY_AWARDS = {
     { "Duelist", "duelsWon" }, { "Epic Hauler", "epics" }, { "Busiest Crafter", "crafted" },
     { "Boss Slayer", "bossKills" }, { "Wipe Lord", "wipes" },
     { "Corpse Runner", "corpseRuns" }, { "Explorer", "areasDiscovered" }, { "Chug Champion", "potions" },
+    { "Hall of Shame", "embarrassingDeaths" }, { "Avenger", "revengeKills" },
     { "Night Owl", "nightTime" }, { "Social Butterfly", "whispersSent" }, { "Hearth Hopper", "hearths" },
 }
 

@@ -164,6 +164,14 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.9"] = {
+        "Hall of Shame (Records): embarrassing deaths, leaps of faith, biggest fall survived, hearthstone regrets, biggest repair bill, and how much you walked when you could ride.",
+        "Luck & Revenge (Records): your roll win rate against the guild average, natural 1s, rolls lost, revenge kills and levels earned from rested XP.",
+        "Revenge! Kill the kind of enemy that last killed you and you'll know about it.",
+        "A Spirit Healer loyalty card every 10th visit.",
+        "Did you know? A new fun fact from your own numbers each time you open the window.",
+        "New scoreboards (Hall of Shame, Avengers) and Weekly Chronicle awards.",
+    },
     ["3.8"] = {
         "Tidier window: six groups (Leaderboards, Players, History, Fellowship, Guild, Options) with pages underneath.",
         "Search everything: characters, enemies, bosses, killers and zones from one box.",

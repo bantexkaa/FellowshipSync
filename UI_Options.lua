@@ -620,6 +620,7 @@ function Options:DrawNotifications(scroll, n, container, group)
             { "boss", "First boss kills" }, { "record", "New fastest boss kills" }, { "gear", "GearScore records" },
             { "prof", "Profession ranks (" .. table.concat(FS.GAME_INFO.profSteps, "/") .. ")" }, { "milestone", "Milestones (jumps, kills, distance, gold...)" },
             { "account", "Account milestones (all your characters together)" },
+            { "fun", "Fun moments (revenge, Spirit Healer loyalty card...)" },
             { "fallen", "Hardcore: your character's final death" },
             { "bounty", "Guild bounty completed" }, { "wager", "Wager results" }, { "onthisday", "On this day (anniversaries)" },
         }

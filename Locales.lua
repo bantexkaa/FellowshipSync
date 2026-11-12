@@ -98,6 +98,13 @@ for k, v in pairs({ ["Leaderboards"] = "Clasificaciones", ["Players"] = "Jugador
     ["Nothing found."] = "Sin resultados.", ["Enemy"] = "Enemigo", ["Boss"] = "Jefe",
     ["Show all settings (Advanced)"] = "Todos los ajustes (Avanzado)", ["Show fewer settings (Simple)"] = "Menos ajustes (Simple)" }) do ES[k] = v end
 
+for k, v in pairs({ ["Shame"] = "Schande", ["Luck"] = "Glück", ["Did you know?"] = "Wusstest du?", ["Hall of Shame"] = "Halle der Schande",
+    ["Luck & Revenge"] = "Glück & Rache", ["Revenge!"] = "Rache!" }) do DE[k] = v end
+for k, v in pairs({ ["Shame"] = "Honte", ["Luck"] = "Chance", ["Did you know?"] = "Le saviez-vous ?", ["Hall of Shame"] = "Mur de la honte",
+    ["Luck & Revenge"] = "Chance & vengeance", ["Revenge!"] = "Vengeance !" }) do FR[k] = v end
+for k, v in pairs({ ["Shame"] = "Vergüenza", ["Luck"] = "Suerte", ["Did you know?"] = "¿Sabías que?", ["Hall of Shame"] = "Muro de la vergüenza",
+    ["Luck & Revenge"] = "Suerte y venganza", ["Revenge!"] = "¡Venganza!" }) do ES[k] = v end
+
 local DICTS = { deDE = DE, frFR = FR, esES = ES, esMX = ES }
 local active = DICTS[(GetLocale and GetLocale()) or "enUS"]
 addonTable.T = function(text) return (active and active[text]) or text end
