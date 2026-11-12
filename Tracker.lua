@@ -230,7 +230,7 @@ function Tracker:Enable()
         "UNIT_SPELLCAST_SUCCEEDED", "PLAYER_TARGET_CHANGED", "MIRROR_TIMER_START", "MIRROR_TIMER_STOP",
         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "QUEST_TURNED_IN", "ENCOUNTER_START", "ENCOUNTER_END",
         "PLAYER_REGEN_DISABLED", "UI_INFO_MESSAGE", "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER", "CONFIRM_XP_LOSS",
-        "PLAYER_UNGHOST", "PLAYER_ALIVE", "UPDATE_BATTLEFIELD_SCORE", "RESURRECT_REQUEST", "PLAYER_XP_UPDATE",
+        "PLAYER_UNGHOST", "PLAYER_ALIVE", "UPDATE_BATTLEFIELD_SCORE", "RESURRECT_REQUEST", "PLAYER_XP_UPDATE", "QUEST_ACCEPTED",
     }
     LibStub("AceEvent-3.0"):Embed(self)
     for _, ev in ipairs(events) do FS.SafeRegister(self, ev) end
@@ -675,6 +675,8 @@ function Tracker:Snapshot()
     rec.highestFall = tonumber(st.highestFall) or 0
     rec.biggestRepair = tonumber(st.biggestRepair) or 0
     rec.restedLevels = math.floor((tonumber(st.restedLevels) or 0) * 100 + 0.5) / 100
+    rec.longestQuest, rec.longestQuestName = tonumber(c.records.longestQuest), c.records.longestQuestName
+    if FS.Progress.CheckGoals then FS.Progress:CheckGoals(rec) end
     rec.companions = self:CountKeys(c.bonds)
     local hk = GetPVPLifetimeStats and Safe(GetPVPLifetimeStats)
     if tonumber(hk) then rec.honorKills = math.max(tonumber(rec.honorKills) or 0, hk) end
@@ -887,6 +889,7 @@ function Tracker:TickHabits(st)
     c.hours[hour + 1] = (c.hours[hour + 1] or 0) + 1
     if hour < 5 then st.nightTime = (st.nightTime or 0) + 1 elseif hour < 9 then st.morningTime = (st.morningTime or 0) + 1 end
     local today = date("%Y-%m-%d")
+    c.dayTime[today] = (c.dayTime[today] or 0) + 1
     if not c.days[today] then
         c.days[today] = true
         self:TrimDays()
@@ -924,6 +927,9 @@ end
 
 -- Keep the last ~400 days.
 function Tracker:TrimDays()
+    local dt, keys = self.db.char.dayTime, {}
+    for d in pairs(dt) do table.insert(keys, d) end
+    if #keys > 400 then table.sort(keys); for i = 1, #keys - 400 do dt[keys[i]] = nil end end
     local days, list = self.db.char.days, {}
     for d in pairs(days) do table.insert(list, d) end
     if #list <= 400 then return end
@@ -1348,8 +1354,15 @@ function Tracker:UNIT_SPELLCAST_SUCCEEDED(_, unit, _, spellID)
     if name and self.gatherNames[name] then self:Add("gathered") end
 end
 
-function Tracker:QUEST_TURNED_IN(_, _, _, money)
+function Tracker:QUEST_TURNED_IN(_, questID, _, money)
     self:Add("quests")
+    local q = tonumber(Clean(questID)) and self.db.char.questLog[questID]
+    if q then
+        local held = time() - (q.t or time())
+        local r = self.db.char.records
+        if held > (tonumber(r.longestQuest) or 0) then r.longestQuest, r.longestQuestName = held, q.name end
+        self.db.char.questLog[questID] = nil
+    end
     money = Clean(money)
     if tonumber(money) and money > 0 then self:Add("goldQuests", money) end
 end
@@ -1374,6 +1387,43 @@ function Tracker:PLAYER_XP_UPDATE()
         st.restedLevels = (tonumber(st.restedLevels) or 0) + (self.lastRested - pool) / maxXP
     end
     self.lastRested = pool
+    local cur, max = Clean(UnitXP and UnitXP("player")), Clean(UnitXPMax and UnitXPMax("player"))
+    local session = self.db.char.session
+    if session and tonumber(cur) and tonumber(self.lastXP) then
+        local gain = cur >= self.lastXP and (cur - self.lastXP) or ((tonumber(self.lastXPMax) or 0) - self.lastXP + cur)
+        if gain > 0 then session.xp = (session.xp or 0) + gain end
+    end
+    self.lastXP, self.lastXPMax = cur, max
+end
+
+-- Session: your numbers at login, so the session summary and live rates can show the difference.
+local SESSION_KEYS = { "kills", "deaths", "quests", "goldLooted", "moneyIn", "jumps", "critters", "fish", "travelFoot",
+                       "travelMount", "travelFlight", "travelSwim", "bossKills", "epics" }
+Tracker.SESSION_KEYS = SESSION_KEYS
+function Tracker:StartSession()
+    local st, base = self:Stats(), {}
+    for _, k in ipairs(SESSION_KEYS) do base[k] = tonumber(st[k]) or 0 end
+    self.db.char.session = { start = time(), base = base, xp = 0, level = tonumber(UnitLevel("player")) or 0 }
+    self.lastXP, self.lastXPMax = Clean(UnitXP and UnitXP("player")), Clean(UnitXPMax and UnitXPMax("player"))
+end
+
+-- Quests: how long each one sat in your log (from install on).
+function Tracker:QUEST_ACCEPTED(_, a, b)
+    local index, questID = a, b
+    if b == nil then index, questID = nil, a end
+    questID = Clean(questID)
+    if not tonumber(questID) then return end
+    local name = C_QuestLog and C_QuestLog.GetTitleForQuestID and Safe(C_QuestLog.GetTitleForQuestID, questID)
+    if not name and index and GetQuestLogTitle then name = Safe(GetQuestLogTitle, index) end
+    local log = self.db.char.questLog
+    log[questID] = { t = time(), name = Clean(name) }
+    local n = 0
+    for _ in pairs(log) do n = n + 1 end
+    if n > 100 then -- keep the 100 most recent
+        local oldest, ot
+        for id, q in pairs(log) do if not ot or q.t < ot then oldest, ot = id, q.t end end
+        log[oldest] = nil
+    end
 end
 
 function Tracker:CHAT_MSG_WHISPER() self:Add("whispersReceived") end
@@ -1521,6 +1571,7 @@ function Tracker:PLAYER_ENTERING_WORLD(_, isLogin, isReload)
     self.bgCounted = false
     self.lastMoney = GetMoney()
     local c = self.db.char
+    if isLogin or not c.session then self:StartSession() end
     if isLogin then
         self:Add("sessions")
         c.sessionStart = time()

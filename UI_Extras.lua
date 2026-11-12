@@ -12,7 +12,8 @@ end
 -- Minimap button (drag to move around the minimap; right-click for Options)
 ---------------------------------------------------------------------------
 
-local ICON = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend"
+FS.LOGO = "Interface\\AddOns\\FellowshipSync\\Media\\Logo"
+local ICON = FS.LOGO
 
 local function MinimapClick(button)
     if button == "RightButton" then
@@ -61,7 +62,7 @@ function Extras:BuildMinimapButton()
     local icon = b:CreateTexture(nil, "BACKGROUND")
     icon:SetSize(20, 20)
     icon:SetPoint("TOPLEFT", 7, -5)
-    icon:SetTexture("Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend")
+    icon:SetTexture(ICON)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     local border = b:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
@@ -370,6 +371,8 @@ function Extras:AddUnitLines(tt)
         tt:AddDoubleLine(W.T("Award"), tostring(award.title), 0.7, 0.7, 0.7, 1, 0.82, 0)
         break
     end
+    local titles = FS.Progress.TitlesFor and FS.Progress:TitlesFor(rec.fullName) or {}
+    if #titles > 0 then tt:AddDoubleLine(W.T("Titles"), table.concat(titles, ", "), 0.7, 0.7, 0.7, 1, 0.6, 0.85) end
     tt:Show()
 end
 

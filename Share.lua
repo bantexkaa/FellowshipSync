@@ -164,6 +164,16 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.10"] = {
+        "New Progress page (Players group): Session, Goals, Calendar, Snapshots and Titles.",
+        "Session summary with live rates: kills, gold and XP per hour, and your time to next level. Share it in chat.",
+        "Mini panel: a few live numbers on screen while you play (/fsync mini).",
+        "Personal goals with a toast when you reach them, and a play-time calendar for the last year.",
+        "Snapshots: save your stats at a moment that matters and see what changed since.",
+        "Stat titles like the Jumper or the Night Owl for whoever leads a stat, shown in tooltips.",
+        "Your longest-held quest, an explorer rank, and a (just for fun) death prediction in the Deathlog.",
+        "FellowshipSync now has its own logo in the addon list, on the minimap button and in the window.",
+    },
     ["3.9"] = {
         "Hall of Shame (Records): embarrassing deaths, leaps of faith, biggest fall survived, hearthstone regrets, biggest repair bill, and how much you walked when you could ride.",
         "Luck & Revenge (Records): your roll win rate against the guild average, natural 1s, rolls lost, revenge kills and levels earned from rested XP.",

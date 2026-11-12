@@ -255,6 +255,7 @@ function Options:DrawBasics(scroll, profile, container, group)
         profile.minimap.hide = not v
         FS.Extras:UpdateMinimapButton()
     end, 420)
+    AddCheck(scroll, "Show the mini panel (live session stats; /fsync mini)", profile.mini.shown, function(v) FS.Progress:ToggleMini(v) end, 420)
     AddHeading(scroll, "Window")
     local pages = { { "last", "Where I left off" } }
     for _, v in ipairs(FS.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end

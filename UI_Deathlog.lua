@@ -13,6 +13,9 @@ function Deathlog:Build(parent)
     self.sub = W.Text(f, "GameFontDisableSmall")
     self.sub:SetPoint("TOPLEFT", self.title, "BOTTOMLEFT", 0, -4)
     self.sub:SetText("Every death with zone, killer and famous last words (the last thing you said before dying).")
+    self.prediction = W.Text(f, "GameFontNormalSmall")
+    self.prediction:SetPoint("TOPRIGHT", -36, -50)
+    self.prediction:SetWidth(460)
 
     self.search = W.Search(f, 300, "Search character, owner, killer or zone...", function(q) self.query = q; self:Refresh() end)
     self.search:SetPoint("TOPRIGHT", -36, -12)
@@ -55,6 +58,10 @@ function Deathlog:GetEntry(i)
 end
 
 function Deathlog:Refresh()
+    if self.prediction then
+        local line = FS.DeathPrediction and FS.DeathPrediction(FS:GetMyRecord())
+        self.prediction:SetText(line and W.Color(line, "ff9a8a") or "")
+    end
     if not self.frame then return end
     local scope = UI.currentScope
     self.title:SetText("Deathlog  -  " .. UI.SCOPE_TITLES[scope] .. (FS:IsWeekMode() and " (This Week)" or ""))

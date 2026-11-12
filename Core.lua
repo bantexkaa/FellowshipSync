@@ -9,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.9.0"
+local FALLBACK_VERSION = "3.10.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -350,6 +350,7 @@ local defaults = {
         pins = {},                     -- characters pinned to the top of leaderboards
         showPins = true,
         colorblind = false,            -- blue/orange instead of green/red
+        mini = { shown = false },      -- the small live-stats panel
         optionsMode = "simple",        -- "simple" (ten settings) or "advanced" (everything)
         startTab = "last",             -- page the window opens on ("last" or a module name)
         startScope = "last",           -- view it opens in ("last" or solo / guild / network / netaccs)
@@ -420,6 +421,10 @@ local defaults = {
         instances = {},  -- instance name -> visits
         records = {},    -- personal bests: longestLife, longestSession, killsSession, levelsDay, goldDay, bestStreak
         life = 0,        -- seconds alive since the last death (played time)
+        dayTime = {},    -- "YYYY-MM-DD" -> seconds played (play-time calendar)
+        questLog = {},   -- questID -> { t, name } (how long quests sit in your log)
+        goals = {},      -- personal goals: { key, target, t, deadline, done }
+        snapshots = {},  -- saved copies of your stats: { name, t, v = { key = value } }
         memories = {},   -- Memory Lane log
         -- rival, lastWk (last week's final numbers), firstSeen are added when known
     },
@@ -468,6 +473,7 @@ function FellowshipSync:OnEnable()
     if self.Fellowship.Enable then self.Fellowship:Enable() end
     if self.Deathmap.Enable then self.Deathmap:Enable() end
     if self.Officer.Enable then self.Officer:Enable() end
+    if self.Progress.Enable then self.Progress:Enable() end
     if self.Options.RegisterBlizzard then self.Options:RegisterBlizzard() end
     if self.Extras.EnableUnitTooltip then self.Extras:EnableUnitTooltip() end
     self:ScheduleTimer(function() if not InCombatLockdown() then self.Share:CheckWhatsNew() end end, 12)
@@ -724,6 +730,10 @@ function FellowshipSync:HandleSlash(input)
             self.GAME_INFO.name, tostring(WOW_PROJECT_ID), tostring(tocVersion), self:MaxLevel(),
             self.HAS_POINTS and ("Points shown as " .. self.POINTS.long) or "No achievements in this game",
             self.HAS_COMBAT_LOG and "used" or "not available"))
+    elseif cmd == "session" then
+        self.Nav:Go("Progress", "session")
+    elseif cmd == "mini" then
+        self.Progress:ToggleMini()
     elseif cmd == "setup" then
         self.Setup:Show()
     elseif cmd == "minimap" then
@@ -731,7 +741,7 @@ function FellowshipSync:HandleSlash(input)
         mm.hide = not mm.hide
         self.Extras:UpdateMinimapButton()
     else
-        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync minimap")
+        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync minimap")
     end
 end
 

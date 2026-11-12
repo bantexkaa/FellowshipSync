@@ -45,6 +45,14 @@ local LEDGER = {
     { "Distance Mounted",   function(r) return W.Distance(FS:GetValue(r, "travelMount")) end },
     { "Distance Flying",    function(r) return W.Distance(FS:GetValue(r, "travelFlight")) end },
     { "Distance Swimming",  function(r) return W.Distance(FS:GetValue(r, "travelSwim")) end },
+    { "Longest Quest in Log", function(r)
+        local q = tonumber(r.longestQuest)
+        return q and q > 0 and string.format("%s%s", W.Duration(q), r.longestQuestName and (" (" .. r.longestQuestName .. ")") or "") or "-"
+    end },
+    { "Titles", function(r)
+        local t = FS.Progress.TitlesFor and FS.Progress:TitlesFor(r.fullName) or {}
+        return #t > 0 and W.Color(table.concat(t, ", "), "ff99d9") or "-"
+    end },
     { "Corpse Runs",        function(r) return string.format("%s (%s as a ghost)", W.Num(FS:GetValue(r, "corpseRuns")), W.Distance(FS:GetValue(r, "corpseDistance"))) end },
     { "Time in Combat",     function(r) return string.format("%s (%s fights)", W.Duration(FS:GetValue(r, "combatTime")), W.Num(FS:GetValue(r, "fights"))) end },
     { "Areas Discovered",   function(r) return W.Num(FS:GetValue(r, "areasDiscovered")) end },

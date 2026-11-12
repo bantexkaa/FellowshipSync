@@ -184,6 +184,7 @@ function Records:RefreshZones(suffix)
     local solo = UI.currentScope == "solo"
     self.title:SetText((solo and "Where You Live" or "Most Popular Zones") .. suffix)
     self.sub:SetText(solo and "Time spent in each zone across your characters." or "Total time everyone in view has spent in each zone.")
+    self.explorerRank = true
     local zones = {}
     for _, r in ipairs(FS:GetScopeCharacters(UI.currentScope)) do
         for _, z in ipairs(r.zones or {}) do
@@ -213,6 +214,12 @@ function Records:RefreshZones(suffix)
         if i >= 150 then break end
     end
     self.zoneList:SetRows(rows)
+    if solo then -- explorer rank from the zones you've visited
+        local n = 0
+        for _ in pairs(zones) do n = n + 1 end
+        local rank = n >= 30 and "Cartographer" or (n >= 10 and "Wanderer" or "Tourist")
+        self.sub:SetText(string.format("%s   %s", self.sub:GetText(), W.Color(string.format(W.T("%d zones visited: %s"), n, W.T(rank)), "ffd100")))
+    end
 end
 
 ---------------------------------------------------------------------------

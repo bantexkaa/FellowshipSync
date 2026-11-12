@@ -467,6 +467,8 @@ function W.CharTooltip(owner, rec)
         for _, award in ipairs(FS.Officer.AwardsFor and FS.Officer:AwardsFor(rec.fullName) or {}) do
             GameTooltip:AddLine("Award: " .. tostring(award.title), 1, 0.82, 0)
         end
+        local titles = FS.Progress.TitlesFor and FS.Progress:TitlesFor(rec.fullName) or {}
+        if #titles > 0 then GameTooltip:AddLine(W.T("Titles") .. ": " .. table.concat(titles, ", "), 1, 0.6, 0.85, true) end
         local via = rec.isMyChar and "your account" or ({ bnet = "Battle.net friend", relay = "relayed by a guildmate", guild = "guild" })[rec.via or "guild"]
         GameTooltip:AddLine("Updated " .. W.Ago(rec.lastUpdate) .. "  -  via " .. tostring(via), 0.6, 0.6, 0.6)
         if rec.version then

@@ -54,7 +54,7 @@ UI.timeMode = "all"
 -- Main-tab groups (each page stays a module; groups just bundle them).
 UI.GROUPS = {
     { label = "Leaderboards", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01", mods = { "Dashboard", "Combat", "Misc", "FactionWar" } },
-    { label = "Players",      icon = "Interface\\Icons\\INV_Misc_Head_Human_01",  mods = { "Profiles", "Records" } },
+    { label = "Players",      icon = "Interface\\Icons\\INV_Misc_Head_Human_01",  mods = { "Profiles", "Records", "Progress" } },
     { label = "History",      icon = "Interface\\Icons\\INV_Misc_Book_09",         mods = { "Deathlog", "Chronicle" } },
     { label = "Fellowship",   icon = "Interface\\Icons\\Spell_Holy_PrayerOfHealing", mods = { "FellowshipUI" } },
     { label = "Guild",        icon = "Interface\\Icons\\INV_BannerPVP_02",          mods = { "GuildUI" } },
@@ -72,6 +72,7 @@ UI.VIEWS = {
     { label = "Chronicle",    mod = "Chronicle" },
     { label = "Fellowship",   mod = "FellowshipUI" },
     { label = "Records",      mod = "Records" },
+    { label = "Progress",     mod = "Progress" },
     { label = "Guild",        mod = "GuildUI" },
     { label = "Options",      mod = "Options" },
 }
@@ -148,8 +149,13 @@ function UI:InitializeFrame()
     self.resizeGrip = grip
 
     -- Title bar: name, All-Time / This Week, scope filter, close.
+    local logo = f:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(26, 26)
+    logo:SetPoint("TOPLEFT", 14, -8)
+    logo:SetTexture("Interface\\AddOns\\FellowshipSync\\Media\\Logo")
+    self.logo = logo
     local title = W.Text(f, "GameFontHighlightLarge")
-    title:SetPoint("TOPLEFT", 16, -12)
+    title:SetPoint("LEFT", logo, "RIGHT", 6, 0)
     title:SetText("|cffffd100Fellowship|rSync |cff888888v" .. FS.VERSION .. "|r")
 
     self.timeButtons = {}

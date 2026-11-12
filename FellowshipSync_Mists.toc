@@ -4,7 +4,7 @@
 ## Author: baNteXKaa
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1771950
-## IconTexture: Interface\Icons\Achievement_GuildPerk_EverybodysFriend
+## IconTexture: Interface\AddOns\FellowshipSync\Media\Logo64
 ## AddonCompartmentFunc: FellowshipSync_OnAddonCompartmentClick
 ## SavedVariables: FellowshipSyncDB
 ## OptionalDeps: Ace3, LibDeflate, LibDataBroker-1.1, LibDBIcon-1.0, HereBeDragons
@@ -45,6 +45,7 @@ UI_FactionWar.lua
 UI_Chronicle.lua
 UI_Fellowship.lua
 UI_Records.lua
+UI_Progress.lua
 UI_Guild.lua
 Share.lua
 UI_Search.lua

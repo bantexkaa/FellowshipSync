@@ -105,6 +105,19 @@ for k, v in pairs({ ["Shame"] = "Honte", ["Luck"] = "Chance", ["Did you know?"] 
 for k, v in pairs({ ["Shame"] = "Vergüenza", ["Luck"] = "Suerte", ["Did you know?"] = "¿Sabías que?", ["Hall of Shame"] = "Muro de la vergüenza",
     ["Luck & Revenge"] = "Suerte y venganza", ["Revenge!"] = "¡Venganza!" }) do ES[k] = v end
 
+for k, v in pairs({ ["Progress"] = "Fortschritt", ["Session"] = "Sitzung", ["Goals"] = "Ziele", ["Calendar"] = "Kalender",
+    ["Snapshots"] = "Momentaufnahmen", ["Titles"] = "Titel", ["This Session"] = "Diese Sitzung", ["Personal Goals"] = "Persönliche Ziele",
+    ["Add Goal"] = "Ziel hinzufügen", ["Save Snapshot"] = "Momentaufnahme speichern", ["Mini Panel"] = "Mini-Anzeige",
+    ["Share Session"] = "Sitzung teilen", ["Play-Time Calendar"] = "Spielzeit-Kalender" }) do DE[k] = v end
+for k, v in pairs({ ["Progress"] = "Progression", ["Session"] = "Session", ["Goals"] = "Objectifs", ["Calendar"] = "Calendrier",
+    ["Snapshots"] = "Instantanés", ["Titles"] = "Titres", ["This Session"] = "Cette session", ["Personal Goals"] = "Objectifs personnels",
+    ["Add Goal"] = "Ajouter un objectif", ["Save Snapshot"] = "Enregistrer un instantané", ["Mini Panel"] = "Mini-panneau",
+    ["Share Session"] = "Partager la session", ["Play-Time Calendar"] = "Calendrier de jeu" }) do FR[k] = v end
+for k, v in pairs({ ["Progress"] = "Progreso", ["Session"] = "Sesión", ["Goals"] = "Metas", ["Calendar"] = "Calendario",
+    ["Snapshots"] = "Instantáneas", ["Titles"] = "Títulos", ["This Session"] = "Esta sesión", ["Personal Goals"] = "Metas personales",
+    ["Add Goal"] = "Añadir meta", ["Save Snapshot"] = "Guardar instantánea", ["Mini Panel"] = "Minipanel",
+    ["Share Session"] = "Compartir sesión", ["Play-Time Calendar"] = "Calendario de juego" }) do ES[k] = v end
+
 local DICTS = { deDE = DE, frFR = FR, esES = ES, esMX = ES }
 local active = DICTS[(GetLocale and GetLocale()) or "enUS"]
 addonTable.T = function(text) return (active and active[text]) or text end
