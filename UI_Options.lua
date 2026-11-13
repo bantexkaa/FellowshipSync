@@ -38,7 +38,7 @@ function Options:Build(parentFrame)
     root:SetLayout("Fill")
     root.frame:SetParent(baseFrame)
     root.frame:ClearAllPoints()
-    root.frame:SetPoint("TOPLEFT", baseFrame, "TOPLEFT", 10, -10)
+    root.frame:SetPoint("TOPLEFT", baseFrame, "TOPLEFT", 10, -52) -- below the Simple / Advanced bar
     root.frame:SetFrameStrata(baseFrame:GetFrameStrata())
     root.frame:Show()
     self.root = root
@@ -56,14 +56,22 @@ function Options:Build(parentFrame)
         { text = FellowshipSync.W.T("Profiles"),       value = "profiles" },
         { text = FellowshipSync.W.T("Database Tools"), value = "tools" }
     }
-    -- Simple (Basics) or Advanced (all tabs), switched with the button at the top right
-    self.modeButton = FellowshipSync.W.Button(baseFrame, "", 190, 22, function()
+    -- Simple (Basics) or Advanced (all tabs): a clear bar across the top of the options.
+    local W = FellowshipSync.W
+    local bar = W.Box(baseFrame, "accent")
+    bar:SetPoint("TOPLEFT", baseFrame, "TOPLEFT", 10, -8)
+    bar:SetPoint("TOPRIGHT", baseFrame, "TOPRIGHT", -10, -8)
+    bar:SetHeight(38)
+    self.modeBar = bar
+    self.modeText = W.Text(bar, "GameFontHighlight")
+    self.modeText:SetPoint("LEFT", 12, 0)
+    self.modeButton = W.Button(bar, "", 240, 26, function()
         local prof = FellowshipSync.db.profile
         prof.optionsMode = (prof.optionsMode == "advanced") and "simple" or "advanced"
         self:ApplyMode()
     end)
-    self.modeButton:SetPoint("TOPRIGHT", baseFrame, "TOPRIGHT", -12, -6)
-    self.modeButton:SetFrameLevel((baseFrame:GetFrameLevel() or 1) + 50)
+    self.modeButton:SetPoint("RIGHT", -8, 0)
+    self.modeButton.text:SetFontObject(GameFontNormal)
     self.tabGroup = tabGroup
     self:ApplyMode(true)
     tabGroup:SetCallback("OnGroupSelected", function(container, _, group)
@@ -133,7 +141,7 @@ function Options:Resize()
     local w, h = self.panel:GetWidth(), self.panel:GetHeight()
     if not w or w <= 0 then return end
     self.root:SetWidth(w - 20)
-    self.root:SetHeight(h - 20)
+    self.root:SetHeight(h - 62) -- leave room for the Simple / Advanced bar
     self.root:DoLayout()
 end
 
@@ -227,6 +235,9 @@ function Options:ApplyMode(silent)
     local simple = FellowshipSync.db.profile.optionsMode ~= "advanced"
     self.tabGroup:SetTabs(simple and { { text = FellowshipSync.W.T("Basics"), value = "basics" } } or self.fullTabs)
     self.modeButton.text:SetText(FellowshipSync.W.T(simple and "Show all settings (Advanced)" or "Show fewer settings (Simple)"))
+    self.modeButton:SetActive(simple)
+    self.modeText:SetText(FellowshipSync.W.T(simple and "You're seeing the most-used settings."
+        or "You're seeing all settings, in seven tabs."))
     if simple then self.currentGroup = "basics"
     elseif self.currentGroup == "basics" or not self.currentGroup then self.currentGroup = "cosmetics" end
     if not silent then self.tabGroup:SelectTab(self.currentGroup) end
@@ -256,6 +267,7 @@ function Options:DrawBasics(scroll, profile, container, group)
         FS.Extras:UpdateMinimapButton()
     end, 420)
     AddCheck(scroll, "Show the mini panel (live session stats; /fsync mini)", profile.mini.shown, function(v) FS.Progress:ToggleMini(v) end, 420)
+    AddCheck(scroll, "Light mode (for older PCs: skips the least important trackers)", profile.lightMode, function(v) profile.lightMode = v end, 420)
     AddHeading(scroll, "Window")
     local pages = { { "last", "Where I left off" } }
     for _, v in ipairs(FS.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end
@@ -572,6 +584,10 @@ function Options:DrawGroup(container, group)
             or "you are up to date"))
 
         AddButton(scroll, "Run Setup Guide Again", 200, function() FellowshipSync.Setup:Show() end)
+        AddButton(scroll, "Copy Debug Report", 200, function() FellowshipSync.Diag:ShowReport() end)
+        AddButton(scroll, "Performance Check", 200, function() FellowshipSync.Diag:PrintPerf() end)
+        AddCheck(scroll, "Light mode: skip zone time, the play-time clock and calendar, falls and hearthstone tracking (for older PCs)",
+            profile.lightMode, function(v) profile.lightMode = v end, 520)
         local wipeBtn = AceGUI:Create("Button")
         wipeBtn:SetText("Wipe Network Cache")
         wipeBtn:SetWidth(200)

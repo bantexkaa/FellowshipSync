@@ -10,7 +10,8 @@ local IsSecret = FS.IsSecret
 --  * Our own counters from events that addons may still read.
 -- When both exist we keep the larger value, so they never double count.
 ---------------------------------------------------------------------------
-local STAT_NAMES = {
+local STAT_NAMES
+STAT_NAMES = {
     kills       = { "^Total kills$" },
     deaths      = { "^Total deaths$" },
     quests      = { "^Quests completed$" },
@@ -332,6 +333,8 @@ end
 ---------------------------------------------------------------------------
 -- Blizzard statistics
 ---------------------------------------------------------------------------
+
+Tracker.STAT_NAMES = STAT_NAMES
 
 function Tracker:DiscoverStatistics()
     if self.statIds then return self.statIds end
@@ -693,6 +696,7 @@ function Tracker:Snapshot()
     rec.hc = c.hc
     rec.lastUpdate = time()
     chars[key] = rec
+    FS:Touch()
 
     self:UpdateWeekly(rec)
     self:CheckMilestones(rec)
@@ -881,15 +885,16 @@ function Tracker:TickHabits(st)
             if hp and max and max > 0 and hp > 0 and hp / max < 0.1 then self.closeCall = true end
         end
     end
+    local light = FS.db.profile.lightMode
     local zone = Clean(GetRealZoneText())
-    if type(zone) == "string" and zone ~= "" then
+    if not light and type(zone) == "string" and zone ~= "" then
         if c.zoneTime[zone] or self:CountKeys(c.zoneTime) < 150 then c.zoneTime[zone] = (c.zoneTime[zone] or 0) + 1 end
     end
     local hour = tonumber(date("%H")) or 0
-    c.hours[hour + 1] = (c.hours[hour + 1] or 0) + 1
+    if not light then c.hours[hour + 1] = (c.hours[hour + 1] or 0) + 1 end
     if hour < 5 then st.nightTime = (st.nightTime or 0) + 1 elseif hour < 9 then st.morningTime = (st.morningTime or 0) + 1 end
     local today = date("%Y-%m-%d")
-    c.dayTime[today] = (c.dayTime[today] or 0) + 1
+    if not light then c.dayTime[today] = (c.dayTime[today] or 0) + 1 end
     if not c.days[today] then
         c.days[today] = true
         self:TrimDays()
@@ -899,6 +904,7 @@ function Tracker:TickHabits(st)
     self.wasGhost = ghost
     if not UnitIsDeadOrGhost("player") then c.life = (c.life or 0) + 1 end
     -- Biggest fall survived: health lost from the start of a fall to the landing.
+    if light then return end -- light mode: no fall or hearthstone tracking
     local hp, maxHp = Clean(UnitHealth("player")), Clean(UnitHealthMax("player"))
     if hp and maxHp and maxHp > 0 then
         if IsFalling and IsFalling() then

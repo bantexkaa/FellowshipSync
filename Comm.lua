@@ -766,6 +766,7 @@ function Comm:HandleMessage(message, distribution, sender, bnetID)
     rec.lastUpdate = (p.alt and stamped and stamped > 0) and math.min(time(), stamped) or time()
     rec.isAlt = p.alt and true or nil
     chars[name] = rec
+    FS:Touch()
     if FS.Fellowship.CheckNamedRival then FS.Fellowship:CheckNamedRival(rec, previousRival) end
     rec.seasons = nil
     if type(p.sn) == "table" then

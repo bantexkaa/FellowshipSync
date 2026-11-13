@@ -156,8 +156,10 @@ function Records:Refresh()
         for _, r in ipairs(FS:GetScopeCharacters("guild")) do local m, w = RollRate(r); made, won = made + m, won + w end
         self.luckAvg = made > 0 and won / made or nil
     end
+    local sortKey = {}
+    for _, r in ipairs(recs) do sortKey[r] = def.sort(r) end
     table.sort(recs, function(a, b)
-        local x, y = def.sort(a), def.sort(b)
+        local x, y = sortKey[a], sortKey[b]
         if x == y then return tostring(a.fullName) < tostring(b.fullName) end
         return x > y
     end)

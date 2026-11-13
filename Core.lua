@@ -9,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress", "Diag" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.10.0"
+local FALLBACK_VERSION = "3.10.1"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -351,6 +351,7 @@ local defaults = {
         showPins = true,
         colorblind = false,            -- blue/orange instead of green/red
         mini = { shown = false },      -- the small live-stats panel
+        lightMode = false,             -- skip the least important trackers (for older PCs)
         optionsMode = "simple",        -- "simple" (ten settings) or "advanced" (everything)
         startTab = "last",             -- page the window opens on ("last" or a module name)
         startScope = "last",           -- view it opens in ("last" or solo / guild / network / netaccs)
@@ -474,6 +475,7 @@ function FellowshipSync:OnEnable()
     if self.Deathmap.Enable then self.Deathmap:Enable() end
     if self.Officer.Enable then self.Officer:Enable() end
     if self.Progress.Enable then self.Progress:Enable() end
+    if self.Diag.Enable then self.Diag:Enable() end
     if self.Options.RegisterBlizzard then self.Options:RegisterBlizzard() end
     if self.Extras.EnableUnitTooltip then self.Extras:EnableUnitTooltip() end
     self:ScheduleTimer(function() if not InCombatLockdown() then self.Share:CheckWhatsNew() end end, 12)
@@ -572,9 +574,25 @@ function FellowshipSync:IsWeekMode()
     return self.UI.timeMode == "week"
 end
 
+-- Character data changes (sync, snapshot, wipe...) bump this, so remembered results can be reused safely.
+FellowshipSync.dataVersion = 0
+function FellowshipSync:Touch() self.dataVersion = self.dataVersion + 1 end
+
+-- The stats an account adds up, prepared once: { key, isMax, weekly }
+local accountSpec
+local function AccountSpec()
+    if accountSpec then return accountSpec end
+    accountSpec = {}
+    for key, def in pairs(FellowshipSync.STATS) do
+        if not def.derived then table.insert(accountSpec, { key, def.agg == "max", def.weekly and true or false }) end
+    end
+    return accountSpec
+end
+
 -- Aggregates characters into one record per account (owner).
 local function BuildAccounts(chars)
     local accounts, order = {}, {}
+    local spec, weekStart = AccountSpec(), FellowshipSync:WeekStart()
     for _, d in pairs(chars) do
         local owner = d.owner or "Unknown"
         local acc = accounts[owner]
@@ -591,18 +609,21 @@ local function BuildAccounts(chars)
         table.insert(acc.chars, d)
         acc.lastUpdate = math.max(acc.lastUpdate, tonumber(d.lastUpdate) or 0)
         acc.isMyChar = acc.isMyChar or d.isMyChar
-        for key, def in pairs(FellowshipSync.STATS) do
-          if not def.derived then
+        local thisWeek = (tonumber(d.lastUpdate) or 0) >= weekStart
+        local wk = d.wk
+        for i = 1, #spec do
+            local s = spec[i]
+            local key = s[1]
             local v = tonumber(d[key]) or 0
-            if def.agg == "max" then
-                acc[key] = math.max(acc[key] or 0, v)
+            if s[2] then
+                local cur = acc[key] or 0
+                if v > cur then acc[key] = v else acc[key] = cur end
             else
                 acc[key] = (acc[key] or 0) + v
             end
-            if def.weekly and (tonumber(d.lastUpdate) or 0) >= FellowshipSync:WeekStart() then
-                acc.wk[key] = (acc.wk[key] or 0) + (tonumber(d.wk and d.wk[key]) or 0)
+            if s[3] and thisWeek and wk then
+                acc.wk[key] = (acc.wk[key] or 0) + (tonumber(wk[key]) or 0)
             end
-          end
         end
         -- The account's face is its best-geared character.
         if (tonumber(d.gs) or 0) >= (acc.bestGs or -1) then
@@ -621,7 +642,17 @@ function FellowshipSync:GetFilteredCharacters(scope)
     scope = scope or self.UI.currentScope or "solo"
     local chars = self.db.global.characters
 
-    if scope == "netaccs" then return BuildAccounts(chars) end
+    if scope == "netaccs" then
+        -- Remembered until character data changes (a sync, your stats, a wipe) or the week rolls over.
+        local key = self.dataVersion .. ":" .. self:WeekStart()
+        local cache = self.accountCache
+        if not cache or cache.key ~= key then
+            cache = { key = key, list = BuildAccounts(chars) }
+            self.accountCache = cache
+        end
+        for i, acc in ipairs(cache.list) do result[i] = acc end
+        return result
+    end
 
     for name, d in pairs(chars) do
         d.fullName = name
@@ -643,9 +674,12 @@ end
 
 -- Sorted copy, highest first (or lowest first when asc).
 function FellowshipSync:SortByStat(list, key, asc)
+    -- Look each value up once, not inside every comparison.
+    local value, name = {}, {}
+    for _, r in ipairs(list) do value[r], name[r] = self:GetValue(r, key), tostring(r.fullName) end
     table.sort(list, function(a, b)
-        local va, vb = self:GetValue(a, key), self:GetValue(b, key)
-        if va == vb then return tostring(a.fullName) < tostring(b.fullName) end
+        local va, vb = value[a], value[b]
+        if va == vb then return name[a] < name[b] end
         if asc then return va < vb end
         return va > vb
     end)
@@ -698,6 +732,7 @@ function FellowshipSync:RefreshUIIfShown()
 end
 
 function FellowshipSync:QueueUIRefresh()
+    self.dataVersion = (self.dataVersion or 0) + 1
     if self.uiRefreshTimer then return end
     self.uiRefreshTimer = self:ScheduleTimer(function()
         self.uiRefreshTimer = nil
@@ -730,6 +765,10 @@ function FellowshipSync:HandleSlash(input)
             self.GAME_INFO.name, tostring(WOW_PROJECT_ID), tostring(tocVersion), self:MaxLevel(),
             self.HAS_POINTS and ("Points shown as " .. self.POINTS.long) or "No achievements in this game",
             self.HAS_COMBAT_LOG and "used" or "not available"))
+    elseif cmd == "debug" then
+        self.Diag:ShowReport()
+    elseif cmd == "perf" then
+        self.Diag:PrintPerf()
     elseif cmd == "session" then
         self.Nav:Go("Progress", "session")
     elseif cmd == "mini" then
@@ -741,7 +780,7 @@ function FellowshipSync:HandleSlash(input)
         mm.hide = not mm.hide
         self.Extras:UpdateMinimapButton()
     else
-        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync minimap")
+        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync debug, /fsync perf, /fsync minimap")
     end
 end
 
@@ -776,6 +815,7 @@ function FellowshipSync:WipeNetworkCache()
     local chars = self.db.global.characters
     for name, d in pairs(chars) do
         if not d.isMyChar or d.isMock then chars[name] = nil end
+        self.dataVersion = self.dataVersion + 1
     end
     local events = self.db.global.events
     for i = #events, 1, -1 do
@@ -790,6 +830,7 @@ function FellowshipSync:ClearMockData()
     local chars, removed = self.db.global.characters, 0
     for name, d in pairs(chars) do
         if d.isMock then chars[name] = nil; removed = removed + 1 end
+        self.dataVersion = self.dataVersion + 1
     end
     local events = self.db.global.events
     for i = #events, 1, -1 do

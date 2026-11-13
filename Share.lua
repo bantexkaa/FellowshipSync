@@ -164,6 +164,14 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.10.1"] = {
+        "Much faster with big guilds and networks: pages draw up to 8 times faster, and long lists only draw the rows you can see.",
+        "The ? help button now sits in the top bar, next to search, and explains whichever page you're on (no more overlapping).",
+        "Options: a clear bar at the top switches between the most-used settings and all settings.",
+        "/fsync debug: a report you can copy into a bug report (versions, libraries, settings, recent errors).",
+        "/fsync perf: memory, saved-data size and how long FellowshipSync's background work takes.",
+        "Light mode for older PCs (Options): skips zone time, the play-time clock and calendar, falls and hearthstone tracking.",
+    },
     ["3.10"] = {
         "New Progress page (Players group): Session, Goals, Calendar, Snapshots and Titles.",
         "Session summary with live rates: kills, gold and XP per hour, and your time to next level. Share it in chat.",

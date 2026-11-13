@@ -740,15 +740,38 @@ function W.List(parent, columns, opts)
         return out
     end
 
+    -- Only the rows you can see are drawn; scrolling redraws them. A list of 1,000 players
+    -- therefore costs about as much as a list of 30.
     function list:Render(rows)
         self:Layout()
+        self.renderRows = rows
         content:SetWidth(math.max(scroll:GetWidth() or 0, 100))
-        local pal, font, size = W.Pal(), W.FontPath(), W.TextSize()
-        for i, data in ipairs(rows) do
-            local row = self.pool[i] or MakeRow(i)
-            row.rec = data.rec
+        content:SetHeight(math.max(10, #rows * (self.rowHeight + 2)))
+        if #rows == 0 and not self.opts.emptyText then self.empty:SetText(W.EmptyHint()) end
+        self.empty:SetShown(#rows == 0)
+        self:FitColumns(#rows)
+        self:RenderWindow()
+    end
+
+    function list:RenderWindow()
+        local rows = self.renderRows or {}
+        local step = self.rowHeight + 2
+        local height = scroll:GetHeight() or 0
+        local visible = (height > 0) and (math.ceil(height / step) + 2) or 40
+        local first = math.floor((tonumber(scroll.GetVerticalScroll and scroll:GetVerticalScroll()) or 0) / step) + 1
+        if first > math.max(1, #rows - visible + 1) then first = math.max(1, #rows - visible + 1) end
+        local pal, font, size, flags = W.Pal(), W.FontPath(), W.TextSize(), W.FontFlags()
+        local slot = 0
+        for i = first, math.min(#rows, first + visible - 1) do
+            slot = slot + 1
+            local data = rows[i]
+            local row = self.pool[slot] or MakeRow(slot)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * step))
+            row:SetPoint("RIGHT", content, "RIGHT", 0, 0)
+            row.rec, row.index = data.rec, i
             for c, fs in ipairs(row.cells) do
-                fs:SetFont(font, size, W.FontFlags())
+                fs:SetFont(font, size, flags)
                 fs:SetText(data.cells[c] or "")
             end
             local shade = (i % 2 == 0) and 0.085 or 0.06
@@ -765,12 +788,10 @@ function W.List(parent, columns, opts)
             end
             row:Show()
         end
-        for i = #rows + 1, #self.pool do self.pool[i]:Hide(); self.pool[i].rec = nil end
-        content:SetHeight(math.max(10, #rows * (self.rowHeight + 2)))
-        if #rows == 0 and not self.opts.emptyText then self.empty:SetText(W.EmptyHint()) end
-        self.empty:SetShown(#rows == 0)
-        self:FitColumns(#rows)
+        for i = slot + 1, #self.pool do self.pool[i]:Hide(); self.pool[i].rec = nil end
     end
+    scroll:HookScript("OnVerticalScroll", function() list:RenderWindow() end)
+    scroll:HookScript("OnSizeChanged", function() if list.renderRows then list:RenderWindow() end end)
 
     -- Sizes every column to its longest text (header included), gives spare room to the
     -- name column, and only shrinks columns when the list really can't fit everything.
@@ -780,9 +801,17 @@ function W.List(parent, columns, opts)
         local gap, widths, total = 8, {}, 0
         for c, col in ipairs(cols) do
             local w = (col.headerText:GetStringWidth() or 0) + 8
-            for i = 1, math.min(rowCount, 300) do
-                local cell = self.pool[i].cells[c]
-                w = math.max(w, (cell:GetStringWidth() or 0) + 8)
+            local rows = self.renderRows or {}
+            local measure = self.measure
+            if not measure then
+                measure = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                measure:Hide()
+                self.measure = measure
+            end
+            measure:SetFont(W.FontPath(), W.TextSize(), W.FontFlags())
+            for i = 1, math.min(#rows, 150) do
+                measure:SetText(rows[i].cells[c] or "")
+                w = math.max(w, (measure:GetStringWidth() or 0) + 8)
             end
             widths[c] = math.max(24, math.ceil(w))
             total = total + widths[c] + gap
@@ -806,10 +835,10 @@ function W.List(parent, columns, opts)
             col.headerText:ClearAllPoints()
             col.headerText:SetPoint("LEFT", header, "LEFT", x, 0)
             col.headerText:SetWidth(widths[c])
-            for i = 1, rowCount do
-                local cell = self.pool[i].cells[c]
+            for _, row in ipairs(self.pool) do
+                local cell = row.cells[c]
                 cell:ClearAllPoints()
-                cell:SetPoint("LEFT", self.pool[i], "LEFT", x, 0)
+                cell:SetPoint("LEFT", row, "LEFT", x, 0)
                 cell:SetWidth(widths[c])
             end
             x = x + widths[c] + gap

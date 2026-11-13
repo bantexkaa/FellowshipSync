@@ -118,6 +118,13 @@ for k, v in pairs({ ["Progress"] = "Progreso", ["Session"] = "Sesión", ["Goals"
     ["Add Goal"] = "Añadir meta", ["Save Snapshot"] = "Guardar instantánea", ["Mini Panel"] = "Minipanel",
     ["Share Session"] = "Compartir sesión", ["Play-Time Calendar"] = "Calendario de juego" }) do ES[k] = v end
 
+DE["You're seeing the most-used settings."] = "Du siehst die meistgenutzten Einstellungen."
+DE["You're seeing all settings, in seven tabs."] = "Du siehst alle Einstellungen, in sieben Reitern."
+FR["You're seeing the most-used settings."] = "Vous voyez les réglages les plus utilisés."
+FR["You're seeing all settings, in seven tabs."] = "Vous voyez tous les réglages, en sept onglets."
+ES["You're seeing the most-used settings."] = "Estás viendo los ajustes más usados."
+ES["You're seeing all settings, in seven tabs."] = "Estás viendo todos los ajustes, en siete pestañas."
+
 local DICTS = { deDE = DE, frFR = FR, esES = ES, esMX = ES }
 local active = DICTS[(GetLocale and GetLocale()) or "enUS"]
 addonTable.T = function(text) return (active and active[text]) or text end

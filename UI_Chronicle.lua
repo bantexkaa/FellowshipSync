@@ -298,15 +298,21 @@ function Chronicle:BuildWeekly()
     local lines = {}
     for _, award in ipairs(WEEKLY_AWARDS) do
         local key = award[2]
-        local sorted = {}
+        -- Only the winner and runner-up matter: one pass, no full sort.
+        local first, firstV, second, secondV
         for _, rec in ipairs(chars) do
-            if FS:GetValue(rec, key, "week") > 0 then table.insert(sorted, rec) end
+            local v = FS:GetValue(rec, key, "week")
+            if v > 0 then
+                if not firstV or v > firstV then
+                    second, secondV, first, firstV = first, firstV, rec, v
+                elseif not secondV or v > secondV then
+                    second, secondV = rec, v
+                end
+            end
         end
-        table.sort(sorted, function(a, b) return FS:GetValue(a, key, "week") > FS:GetValue(b, key, "week") end)
-        if sorted[1] then
-            local value = W.FormatStat(key, FS:GetValue(sorted[1], key, "week"))
-            table.insert(lines, { award = award[1], rec = sorted[1], value = value, runner = sorted[2],
-                                  runnerValue = sorted[2] and W.FormatStat(key, FS:GetValue(sorted[2], key, "week")) })
+        if first then
+            table.insert(lines, { award = award[1], rec = first, value = W.FormatStat(key, firstV), runner = second,
+                                  runnerValue = second and W.FormatStat(key, secondV) })
         end
     end
 

@@ -234,6 +234,7 @@ function FS:InjectMockData()
                 rec.hc = { t = d.t, zone = d.zone, killer = d.killer, kdesc = d.kdesc, lvl = level, words = d.words, played = rec.playtime }
             end
             chars[name] = rec
+            self.dataVersion = (self.dataVersion or 0) + 1
 
             if math.random() > 0.6 then
                 local evs = {

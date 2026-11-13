@@ -221,6 +221,19 @@ function UI:InitializeFrame()
     -- Search everything
     self.globalSearch = W.Search(f, 240, "Search everything...", function(q) FS.GlobalSearch:Show(q) end)
     self.globalSearch:SetPoint("TOPRIGHT", f, "TOPRIGHT", -20, -76)
+    -- One "?" in the top bar explains whichever page and section is open (it never overlaps page content).
+    local help = W.Button(f, "?", 24, 22)
+    help:SetPoint("RIGHT", self.globalSearch, "LEFT", -8, 0)
+    help:SetScript("OnEnter", function(btn)
+        local view = UI.inspecting and FS.Inspector or FS[UI.VIEWS[UI.currentTab].mod]
+        local mod = UI.inspecting and "Inspector" or UI.VIEWS[UI.currentTab].mod
+        GameTooltip:SetOwner(btn, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:AddLine(W.Plain(view and view.title and view.title.GetText and view.title:GetText() or W.T(UI.VIEWS[UI.currentTab].label)), 1, 0.82, 0)
+        GameTooltip:AddLine(FS.HelpText(mod, view and view.current), 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    help:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    self.helpButton = help
 
     -- A coloured connector from the active tab down into the page.
     self.tabConnector = f:CreateTexture(nil, "OVERLAY")
@@ -248,19 +261,7 @@ function UI:InitializeFrame()
         if mod and mod.Build then
             mod:Build(content)
             if mod.frame then mod.frame:SetAllPoints(content); mod.frame:Hide() end
-            -- A "?" next to the page title explains what it shows and how it's counted
-            if mod.title and FS.HELP then
-                local help = W.Button(mod.frame, "?", 20, 20)
-                help:SetPoint("LEFT", mod.title, "RIGHT", 8, 0)
-                help:SetScript("OnEnter", function(btn)
-                    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-                    GameTooltip:AddLine(W.Plain(mod.title:GetText() or ""), 1, 0.82, 0)
-                    GameTooltip:AddLine(FS.HelpText(v.mod, mod.current), 1, 1, 1, true)
-                    GameTooltip:Show()
-                end)
-                help:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                mod.helpButton = help
-            end
+
         end
     end
     FS.Inspector:Build(content)

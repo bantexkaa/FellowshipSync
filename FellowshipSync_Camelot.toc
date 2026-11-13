@@ -49,6 +49,7 @@ UI_Progress.lua
 UI_Guild.lua
 Share.lua
 UI_Search.lua
+Diagnostics.lua
 UI_Options.lua
 UI_Extras.lua
 Notify.lua

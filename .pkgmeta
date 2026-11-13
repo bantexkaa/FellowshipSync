@@ -1,3 +1,5 @@
+# CurseForge / BigWigs packager: fetches the libraries into every release,
+# so they never have to be copied into the project by hand.
 package-as: FellowshipSync
 enable-nolib-creation: no
 
