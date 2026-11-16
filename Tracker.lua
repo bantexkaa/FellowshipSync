@@ -260,8 +260,25 @@ function Tracker:Stats() return self.db.char.stats end
 
 function Tracker:CountKeys(t)
     local n = 0
+    if type(t) ~= "table" then return 0 end
     for _ in pairs(t) do n = n + 1 end
     return n
+end
+
+-- At logout AceDB removes anything still at its default value (empty lists included) before
+-- every addon's own logout handler has run. Put any missing per-character lists back first.
+local function Restore(target, defaults)
+    for k, v in pairs(defaults) do
+        if type(v) == "table" then
+            if type(target[k]) ~= "table" then target[k] = {} end
+            Restore(target[k], v)
+        end
+    end
+end
+function Tracker:EnsureCharTables()
+    local c = self.db and self.db.char
+    local d = FS.db and FS.db.defaults and FS.db.defaults.char
+    if c and d then Restore(c, d) end
 end
 
 -- Consumable sub-types (the same numbers in every game version).
@@ -582,6 +599,7 @@ function Tracker:IsHardcore()
 end
 
 function Tracker:Snapshot()
+    self:EnsureCharTables()
     if not self.db then return end
     self:UpdateStatistics()
     -- Rescan at least once a minute: challenge data may arrive after login, and completing

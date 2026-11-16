@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.10.1"
+local FALLBACK_VERSION = "3.10.2"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
