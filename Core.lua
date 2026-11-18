@@ -9,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress", "Diag" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress", "Diag", "AltMap" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.10.2"
+local FALLBACK_VERSION = "3.12.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -391,6 +391,8 @@ local defaults = {
         memory = { enabled = true, maxlevel = true, boss = true, firsts = true, record = false, legacy = true,
                    fallen = true, levels = false, bounty = true },
         -- Deathmap: skulls on the world map. scope: "solo" | "guild" | "network"
+        -- Alt Map: your other characters on the world map. Sharing and seeing shared ones: off by default.
+        altMap = { mine = true, share = false, showShared = false, live = true, coords = true, trail = false, shareLive = false, showLive = false },
         deathmap = { worldMap = true, scope = "guild", size = 14, max = 400, days = 0, mode = "skulls", hotGrid = "medium",
                      hcOnly = false, highlightMine = true },
         privacy = {
@@ -473,6 +475,7 @@ function FellowshipSync:OnEnable()
     self.Tracker:Enable()
     if self.Fellowship.Enable then self.Fellowship:Enable() end
     if self.Deathmap.Enable then self.Deathmap:Enable() end
+    if self.AltMap.Enable then self.AltMap:Enable() end
     if self.Officer.Enable then self.Officer:Enable() end
     if self.Progress.Enable then self.Progress:Enable() end
     if self.Diag.Enable then self.Diag:Enable() end

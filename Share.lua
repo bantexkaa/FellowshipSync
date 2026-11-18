@@ -164,6 +164,20 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.12"] = {
+        "Live view: the character you're playing now shows on the world map with a glowing green ring, moving with you while the map is open.",
+        "Hover it for your zone, subzone, coordinates and how long you've played this session. Click it for your profile.",
+        "New coordinates bar under the world map: where you are and where your cursor points.",
+        "Optional: a trail of where you've been this session.",
+        "Optional (off by default): share where you are right now with your guild and friends, and see the ones who share theirs (cyan ring, your realm or a connected realm). Nothing is stored; icons vanish 90 seconds after someone stops.",
+        "Settings in Options > Fellowship > Alt Map (the live view is also under Basics).",
+    },
+    ["3.11"] = {
+        "Alt Map: your other characters now show on the world map, where you last played them. Hover for the zone, click for their profile.",
+        "Optional (off by default): share where your other characters are parked with your guild and friends - never where you are right now.",
+        "Optional (off by default): see the characters guildmates and friends share, only for your own or a connected realm.",
+        "Find the settings in Options > Fellowship > Alt Map (the main one is also under Basics).",
+    },
     ["3.10.1"] = {
         "Much faster with big guilds and networks: pages draw up to 8 times faster, and long lists only draw the rows you can see.",
         "The ? help button now sits in the top bar, next to search, and explains whichever page you're on (no more overlapping).",

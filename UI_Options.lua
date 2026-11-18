@@ -268,6 +268,10 @@ function Options:DrawBasics(scroll, profile, container, group)
     end, 420)
     AddCheck(scroll, "Show the mini panel (live session stats; /fsync mini)", profile.mini.shown, function(v) FS.Progress:ToggleMini(v) end, 420)
     AddCheck(scroll, "Light mode (for older PCs: skips the least important trackers)", profile.lightMode, function(v) profile.lightMode = v end, 420)
+    AddCheck(scroll, "Show my other characters on the world map (more in Advanced > Fellowship)", profile.altMap.mine ~= false,
+        function(v) profile.altMap.mine = v; FS.AltMap:Refresh() end, 420)
+    AddCheck(scroll, "Show where I am right now on the world map (live view)", profile.altMap.live ~= false,
+        function(v) profile.altMap.live = v; FS.AltMap:UpdateLive(true) end, 420)
     AddHeading(scroll, "Window")
     local pages = { { "last", "Where I left off" } }
     for _, v in ipairs(FS.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end
@@ -812,6 +816,27 @@ function Options:DrawFellowship(scroll, profile, container, group)
         for _, k in ipairs(kinds) do AddCheck(scroll, k[2], m[k[1]], function(v) m[k[1]] = v end, 300) end
         AddLabel(scroll, "Screenshots go to your World of Warcraft Screenshots folder. At most one every 10 seconds.")
     end
+    AddHeading(scroll, "Alt Map")
+    local am = profile.altMap
+    local refresh = function() FellowshipSync.AltMap:Refresh() end
+    AddCheck(scroll, "Show my other characters on the world map, where I last played them", am.mine ~= false,
+        function(v) am.mine = v; refresh() end, 520)
+    AddCheck(scroll, "Share where my other characters are parked with my guild and friends (never where I am now)", am.share,
+        function(v) am.share = v end, 520)
+    AddCheck(scroll, "Show characters that guildmates and friends share (only those on my realm or a connected realm)", am.showShared,
+        function(v) am.showShared = v; refresh() end, 520)
+    AddLabel(scroll, "Sharing and shared icons are off by default, so nobody's map fills up with icons. Positions are only known outdoors.")
+    AddCheck(scroll, "Live view: show the character I'm playing on the world map, updated as I move", am.live ~= false,
+        function(v) am.live = v; FellowshipSync.AltMap:UpdateLive(true) end, 520)
+    AddCheck(scroll, "Show coordinates under the world map (mine and the cursor's)", am.coords ~= false,
+        function(v) am.coords = v; FellowshipSync.AltMap:UpdateCoords() end, 520)
+    AddCheck(scroll, "Draw a trail of where I've been this session (cleared when I log out)", am.trail,
+        function(v) am.trail = v; if not v then FellowshipSync.AltMap:ClearTrail() end end, 520)
+    AddCheck(scroll, "Share where I am right now with my guild and friends (live, every 15 seconds while I move)", am.shareLive,
+        function(v) am.shareLive = v; FellowshipSync.AltMap:ShareLiveTick() end, 520)
+    AddCheck(scroll, "Show guildmates and friends who share where they are right now (my realm or a connected realm)", am.showLive,
+        function(v) am.showLive = v; if not v then FellowshipSync.AltMap.peers = {} end; FellowshipSync.AltMap:DrawPeers() end, 520)
+    AddLabel(scroll, "Live sharing is off by default. When on, it only goes to your guild and the Battle.net friends you sync with, is never stored or passed on, and stops inside dungeons, raids and battlegrounds. Turning it off clears your icon for everyone.")
     AddHeading(scroll, "Deathmap")
     AddCheck(scroll, "Show a skull on the world map for every recorded death", d.worldMap ~= false, function(v)
         d.worldMap = v; FellowshipSync.Deathmap:Refresh()

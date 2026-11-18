@@ -125,6 +125,19 @@ FR["You're seeing all settings, in seven tabs."] = "Vous voyez tous les réglage
 ES["You're seeing the most-used settings."] = "Estás viendo los ajustes más usados."
 ES["You're seeing all settings, in seven tabs."] = "Estás viendo todos los ajustes, en siete pestañas."
 
+for k, v in pairs({ ["Last played here %s"] = "Zuletzt hier gespielt %s", ["Shared by %s"] = "Geteilt von %s",
+    ["Click to open their profile."] = "Klicken, um das Profil zu öffnen.", ["Alt Map"] = "Twink-Karte" }) do DE[k] = v end
+for k, v in pairs({ ["Last played here %s"] = "Joué ici pour la dernière fois %s", ["Shared by %s"] = "Partagé par %s",
+    ["Click to open their profile."] = "Cliquez pour ouvrir son profil.", ["Alt Map"] = "Carte des rerolls" }) do FR[k] = v end
+for k, v in pairs({ ["Last played here %s"] = "Jugado aquí por última vez %s", ["Shared by %s"] = "Compartido por %s",
+    ["Click to open their profile."] = "Haz clic para abrir su perfil.", ["Alt Map"] = "Mapa de alters" }) do ES[k] = v end
+for k, v in pairs({ ["You are here"] = "Du bist hier", ["You"] = "Du", ["Cursor"] = "Mauszeiger",
+    ["Playing for %s this session"] = "In dieser Sitzung seit %s im Spiel", ["Click to open your profile."] = "Klicken, um dein Profil zu öffnen.", ["Live"] = "Live", ["Updated %s"] = "Aktualisiert %s" }) do DE[k] = v end
+for k, v in pairs({ ["You are here"] = "Vous êtes ici", ["You"] = "Vous", ["Cursor"] = "Curseur",
+    ["Playing for %s this session"] = "En jeu depuis %s cette session", ["Click to open your profile."] = "Cliquez pour ouvrir votre profil.", ["Live"] = "En direct", ["Updated %s"] = "Mis à jour %s" }) do FR[k] = v end
+for k, v in pairs({ ["You are here"] = "Estás aquí", ["You"] = "Tú", ["Cursor"] = "Cursor",
+    ["Playing for %s this session"] = "Jugando desde hace %s en esta sesión", ["Click to open your profile."] = "Haz clic para abrir tu perfil.", ["Live"] = "En directo", ["Updated %s"] = "Actualizado %s" }) do ES[k] = v end
+
 local DICTS = { deDE = DE, frFR = FR, esES = ES, esMX = ES }
 local active = DICTS[(GetLocale and GetLocale()) or "enUS"]
 addonTable.T = function(text) return (active and active[text]) or text end

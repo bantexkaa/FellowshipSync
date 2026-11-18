@@ -598,8 +598,24 @@ function Tracker:IsHardcore()
     return (self:Ruleset(UnitFactionGroup("player")):match("%-HC$")) ~= nil
 end
 
+-- Where this character is (outdoors only: the game hides positions inside instances).
+-- Kept as the last known spot, so an alt shows where you left it.
+function Tracker:RecordPosition()
+    local c = self.db and self.db.char
+    if not c then return end
+    local mapID = C_Map and C_Map.GetBestMapForUnit and Clean(Safe(C_Map.GetBestMapForUnit, "player"))
+    local pos = mapID and C_Map.GetPlayerMapPosition and Safe(C_Map.GetPlayerMapPosition, mapID, "player")
+    if not (pos and pos.GetXY) then return end
+    local x, y = Safe(pos.GetXY, pos)
+    x, y = Clean(x), Clean(y)
+    if not (tonumber(x) and tonumber(y)) or x <= 0 or y <= 0 or x >= 1 or y >= 1 then return end
+    c.lastPos = { map = mapID, x = math.floor(x * 1000 + 0.5) / 1000, y = math.floor(y * 1000 + 0.5) / 1000,
+                  t = time(), zone = Clean(GetRealZoneText()) }
+end
+
 function Tracker:Snapshot()
     self:EnsureCharTables()
+    self:RecordPosition()
     if not self.db then return end
     self:UpdateStatistics()
     -- Rescan at least once a minute: challenge data may arrive after login, and completing
@@ -697,6 +713,7 @@ function Tracker:Snapshot()
     rec.biggestRepair = tonumber(st.biggestRepair) or 0
     rec.restedLevels = math.floor((tonumber(st.restedLevels) or 0) * 100 + 0.5) / 100
     rec.longestQuest, rec.longestQuestName = tonumber(c.records.longestQuest), c.records.longestQuestName
+    rec.pos = c.lastPos
     if FS.Progress.CheckGoals then FS.Progress:CheckGoals(rec) end
     rec.companions = self:CountKeys(c.bonds)
     local hk = GetPVPLifetimeStats and Safe(GetPVPLifetimeStats)

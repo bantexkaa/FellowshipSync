@@ -159,6 +159,9 @@ function FS:InjectMockData()
             for _, e in pairs(rec.encounters) do rec.bossKills = rec.bossKills + e.kills; rec.wipes = rec.wipes + e.wipes end
             rec.version = (math.random() > 0.85) and "2.6.0" or FS.VERSION
             rec.firstSeen = time() - math.random(86400, 3000000)
+            -- Alt Map: where each sample character was parked
+            rec.pos = { map = 1429 + (count % 5), x = math.random(100, 900) / 1000, y = math.random(100, 900) / 1000,
+                        t = time() - math.random(600, 1500000), zone = rec.zone }
             -- Records tab: every new counter gets a plausible value
             local RANGES = {
                 travelSwim = 40000, corpseRuns = 300, corpseDistance = 90000, hearths = 400, flightPathsFound = 40,

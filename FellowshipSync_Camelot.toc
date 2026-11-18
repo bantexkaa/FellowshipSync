@@ -55,6 +55,7 @@ UI_Extras.lua
 Notify.lua
 Fellowship.lua
 Deathmap.lua
+AltMap.lua
 Games.lua
 Officer.lua
 UI_Setup.lua

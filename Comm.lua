@@ -210,6 +210,11 @@ function Comm:BuildPacket(rec, full, isAlt)
     end
     if privacy.shareSocial ~= false then packet.fe = rec.favEmote end
     if isAlt then packet.alt = true end
+    -- Alt Map: the parked position of a character you're NOT playing, only if you chose to share it.
+    local am = profile.altMap
+    if isAlt and am and am.share and privacy.shareLocation ~= false and type(rec.pos) == "table" and tonumber(rec.pos.map) then
+        packet.ap = { rec.pos.map, rec.pos.x, rec.pos.y, rec.pos.t, rec.pos.zone }
+    end
     if not isAlt and FS.Officer.BuildPayload then packet.gd = FS.Officer:BuildPayload() end -- guild tools
     if rec.seasons then packet.sn = rec.seasons end
 
@@ -522,6 +527,56 @@ function Comm:BroadcastStats(manual)
 end
 
 ---------------------------------------------------------------------------
+-- Live position (opt-in, off by default): where you are right now, every 15 s
+-- while you move, to your guild and trusted Battle.net friends. Tiny packets,
+-- never stored, never relayed. Receivers only show same / connected realm.
+---------------------------------------------------------------------------
+
+function Comm:SendLive(map, x, y, zone)
+    if not FS.db then return false end
+    local profile = FS.db.profile
+    if not self:CanSendNow() then return false end
+    local packet = { v = PROTOCOL, k = KeyHash(FS.db.global.networkKey), gm = FS.GAME, ver = FS.VERSION,
+                     n = FS:GetPlayerKey(), o = FS.Tracker and FS.Tracker.AccountLabel and FS.Tracker:AccountLabel() or nil }
+    if map then
+        local _, cls = UnitClass("player")
+        packet.lv = { map, math.floor(x * 10000 + 0.5) / 10000, math.floor(y * 10000 + 0.5) / 10000, zone, cls, UnitLevel("player") }
+    else
+        packet.lv = false -- "I stopped sharing"
+    end
+    local text = Encode(packet)
+    if not text then return false end
+    if profile.syncGuild ~= false and IsInGuild() then FS:SendCommMessage(PREFIX, text, "GUILD", nil, "NORMAL") end
+    if profile.syncBNet ~= false then
+        for _, target in ipairs(self:FriendAccounts()) do
+            if self:MayShareWith(target) then self:SendBNet(target, text) end
+        end
+    end
+    return true
+end
+
+function Comm:HandleLive(p, distribution, sender, bnetID)
+    local name = Str(p.n, 80)
+    if not name or name == "" then return end
+    -- over the guild channel the game tells us who sent it: the packet's name must match
+    if distribution ~= "BNET" then
+        local from = Str(sender, 80)
+        if not from then return end
+        local a, b = from:match("^[^%-]+"), name:match("^[^%-]+")
+        if not (a and b and (a == b or b:sub(1, #a + 1) == a .. " ")) then return end
+    end
+    if FS:IsMe(name) or name == FS:GetPlayerKey() then return end
+    if bnetID and not self:MayShareWith(bnetID) then return end
+    if p.lv == false then return FS.AltMap:SetPeer(name, nil) end
+    local lv = p.lv
+    if type(lv) ~= "table" then return end
+    local map, x, y = Num(lv[1]), Num(lv[2]), Num(lv[3])
+    if not (map and x and y and x > 0 and x < 1 and y > 0 and y < 1) then return end
+    FS.AltMap:SetPeer(name, { map = math.floor(map), x = x, y = y, zone = Str(lv[4], 64), cls = Str(lv[5], 20),
+                              level = Num(lv[6]), owner = Str(p.o, 48) })
+end
+
+---------------------------------------------------------------------------
 -- Receiving
 ---------------------------------------------------------------------------
 
@@ -570,6 +625,11 @@ function Comm:HandleMessage(message, distribution, sender, bnetID)
 
     if p.hello or p.ack or p.ack2 then -- Battle.net handshake (never valid over the guild channel)
         if bnetID and FS.db.profile.syncBNet ~= false then self:Handshake(p, bnetID) end
+        return
+    end
+
+    if p.lv ~= nil then -- live map position (opt-in on both sides; kept in memory only)
+        self:HandleLive(p, distribution, sender, bnetID)
         return
     end
 
@@ -765,6 +825,13 @@ function Comm:HandleMessage(message, distribution, sender, bnetID)
     local stamped = Num(p.ts)
     rec.lastUpdate = (p.alt and stamped and stamped > 0) and math.min(time(), stamped) or time()
     rec.isAlt = p.alt and true or nil
+    rec.pos = nil
+    if p.alt and type(p.ap) == "table" then
+        local map, x, y, t = Num(p.ap[1]), Num(p.ap[2]), Num(p.ap[3]), Num(p.ap[4])
+        if map and x and y and x > 0 and x < 1 and y > 0 and y < 1 then
+            rec.pos = { map = math.floor(map), x = x, y = y, t = math.min(time(), t or time()), zone = Str(p.ap[5], 64) }
+        end
+    end
     chars[name] = rec
     FS:Touch()
     if FS.Fellowship.CheckNamedRival then FS.Fellowship:CheckNamedRival(rec, previousRival) end
