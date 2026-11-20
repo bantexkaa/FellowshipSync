@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.12.0"
+local FALLBACK_VERSION = "3.12.1"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -476,6 +476,8 @@ function FellowshipSync:OnEnable()
     if self.Fellowship.Enable then self.Fellowship:Enable() end
     if self.Deathmap.Enable then self.Deathmap:Enable() end
     if self.AltMap.Enable then self.AltMap:Enable() end
+    self.Notify:QuietChatOnce()
+    if self.db.profile.notify.announce then self.Notify:WatchChat() end
     if self.Officer.Enable then self.Officer:Enable() end
     if self.Progress.Enable then self.Progress:Enable() end
     if self.Diag.Enable then self.Diag:Enable() end

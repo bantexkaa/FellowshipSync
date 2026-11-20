@@ -698,7 +698,9 @@ function Options:DrawNotifications(scroll, n, container, group)
     end
 
     AddHeading(scroll, "Chat Announcements")
-    AddCheck(scroll, "Announce my own big moments in chat", n.announce, function(v) n.announce = v; redraw() end)
+    AddCheck(scroll, "Announce my own big moments in chat (off by default)", n.announce, function(v)
+        n.announce = v; if v then FS.Notify:WatchChat() end; redraw()
+    end)
     if n.announce then
         AddChoice(scroll, "Where", { { "guild", "Guild chat" }, { "group", "Party / raid chat" }, { "both", "Guild and group" } },
             n.channel, function(v) n.channel = v end)
@@ -716,7 +718,8 @@ function Options:DrawNotifications(scroll, n, container, group)
         AddCheck(scroll, "Include last words in Hardcore death announcements", n.lastWords ~= false, function(v) n.lastWords = v end, 360)
         AddCheck(scroll, "Start messages with [FellowshipSync]", n.prefix ~= false, function(v) n.prefix = v end, 300)
         AddButton(scroll, "Preview", 120, function() FS.Notify:Preview() end)
-        AddLabel(scroll, "Messages are plain text, at most one every few seconds, and wait until you are out of combat.")
+        AddLabel(scroll, "Plain text, wait until you are out of combat, and at most one every 10 minutes (max level and Hardcore deaths always go out). "
+            .. "If several of you kill a boss together, only one of you announces it.")
     end
 end
 

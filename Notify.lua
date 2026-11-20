@@ -11,6 +11,8 @@ local W = FS.W
 
 local RECENT = 900          -- only toast network events from the last 15 minutes
 local CHAT_SPACING = 2.5    -- seconds between chat announcements
+local AUTO_COOLDOWN = 600   -- automatic announcements: at most one per 10 minutes (max level and Hardcore deaths excepted)
+local DEDUPE_WINDOW = 90    -- skip a boss announcement if someone else already posted it this recently
 
 function Notify:Settings() return FS.db.profile.notify end
 
@@ -183,7 +185,7 @@ function Notify:OnEvent(ev)
             local title, desc, icon = self:ToastText(ev, true)
             FS.Extras:ShowToast(title, desc, icon, false, ev)
         end
-        if n.announce and self:WantAnnounce(ev) then self:Announce(self:ChatText(ev)) end
+        if n.announce and self:WantAnnounce(ev) then self:AutoAnnounce(ev) end
         return
     end
     if (tonumber(ev.t) or 0) < time() - RECENT then return end -- old news (e.g. right after someone logs in)
@@ -211,6 +213,68 @@ function Notify:Channels()
         elseif IsInGroup and IsInGroup() then table.insert(out, "PARTY") end
     end
     return out
+end
+
+---------------------------------------------------------------------------
+-- Keeping guild chat quiet
+--   * Automatic announcements are off by default; 3.12 switches them off once
+--     for everyone who had them on (with a note), since guilds found them spammy.
+--   * At most one automatic announcement per 10 minutes.
+--   * Boss kills and records: wait a few seconds and stay quiet if a groupmate's
+--     FellowshipSync already announced the same boss.
+---------------------------------------------------------------------------
+
+function Notify:QuietChatOnce()
+    local n = FS.db and self:Settings()
+    if not n or n.chatReset312 then return end
+    n.chatReset312 = true
+    if n.announce then
+        n.announce = false
+        FS:Print("Chat announcements are now off by default, to keep guild chat quiet. "
+            .. "You can switch them back on in Options > Notifications.")
+    end
+end
+
+local function Unsecret(v) return type(v) == "string" and not (issecretvalue and issecretvalue(v)) and v or nil end
+
+function Notify:WatchChat()
+    if self.chatWatch then return end
+    self.recentChat = {}
+    local f = CreateFrame("Frame")
+    for _, e in ipairs({ "CHAT_MSG_GUILD", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
+                         "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do pcall(f.RegisterEvent, f, e) end
+    f:SetScript("OnEvent", function(_, _, msg, sender)
+        msg, sender = Unsecret(msg), Unsecret(sender)
+        if not msg or not msg:find("[FellowshipSync]", 1, true) or (sender and FS:IsMe(sender)) then return end
+        local now = time()
+        for i = #self.recentChat, 1, -1 do if now - self.recentChat[i].t > DEDUPE_WINDOW then table.remove(self.recentChat, i) end end
+        table.insert(self.recentChat, { t = now, msg = msg })
+    end)
+    self.chatWatch = f
+end
+
+function Notify:SomeoneSaid(key)
+    if not key or key == "" then return false end
+    local now = time()
+    for _, r in ipairs(self.recentChat or {}) do
+        if now - r.t <= DEDUPE_WINDOW and r.msg:find(key, 1, true) then return true end
+    end
+    return false
+end
+
+function Notify:AutoAnnounce(ev)
+    local text = self:ChatText(ev)
+    if not text then return end
+    local important = ev.kind == "fallen" or (ev.kind == "level" and (tonumber(ev.v) or 0) == FS:MaxLevel())
+    if not important and time() - (self.lastAuto or 0) < AUTO_COOLDOWN then return end
+    self.lastAuto = time()
+    local key = (ev.kind == "boss" or ev.kind == "record") and ev.a and Plain(ev.a) or nil
+    if not key then return self:Announce(text) end
+    -- Several of you killed it together: let one of you speak.
+    self:WatchChat()
+    FS:ScheduleTimer(function()
+        if not self:SomeoneSaid(key) then self:Announce(text) end
+    end, math.random(2, 8))
 end
 
 -- channels: optional list (e.g. { "GUILD" }); default = the channel chosen in Options.

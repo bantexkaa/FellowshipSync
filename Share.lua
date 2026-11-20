@@ -164,6 +164,10 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.12.1"] = {
+        "Quieter guild chat: automatic chat announcements are now off for everyone. Switch them back on in Options > Notifications if you want them.",
+        "When on: at most one every 10 minutes (max level and Hardcore deaths always go out), and if several of you kill a boss together, only one of you announces it.",
+    },
     ["3.12"] = {
         "Live view: the character you're playing now shows on the world map with a glowing green ring, moving with you while the map is open.",
         "Hover it for your zone, subzone, coordinates and how long you've played this session. Click it for your profile.",
