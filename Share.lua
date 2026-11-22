@@ -164,6 +164,11 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.12.2"] = {
+        "Alt Map: each of your characters now shows only once, at its last known place, and the character you're playing never has a parked icon.",
+        "Live view is now off by default. Turn it on in Options > Basics or Options > Fellowship > Alt Map.",
+        "The live view now draws a real trail behind you: a continuous line of where you've been this session, instead of scattered dots.",
+    },
     ["3.12.1"] = {
         "Quieter guild chat: automatic chat announcements are now off for everyone. Switch them back on in Options > Notifications if you want them.",
         "When on: at most one every 10 minutes (max level and Hardcore deaths always go out), and if several of you kill a boss together, only one of you announces it.",

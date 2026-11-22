@@ -270,8 +270,8 @@ function Options:DrawBasics(scroll, profile, container, group)
     AddCheck(scroll, "Light mode (for older PCs: skips the least important trackers)", profile.lightMode, function(v) profile.lightMode = v end, 420)
     AddCheck(scroll, "Show my other characters on the world map (more in Advanced > Fellowship)", profile.altMap.mine ~= false,
         function(v) profile.altMap.mine = v; FS.AltMap:Refresh() end, 420)
-    AddCheck(scroll, "Show where I am right now on the world map (live view)", profile.altMap.live ~= false,
-        function(v) profile.altMap.live = v; FS.AltMap:UpdateLive(true) end, 420)
+    AddCheck(scroll, "Show where I am right now on the world map, with a trail behind me (live view)", profile.altMap.live == true,
+        function(v) profile.altMap.live = v; FS.AltMap:UpdateLive(true); FS.AltMap:DrawTrail() end, 420)
     AddHeading(scroll, "Window")
     local pages = { { "last", "Where I left off" } }
     for _, v in ipairs(FS.UI.VIEWS) do table.insert(pages, { v.mod, v.label }) end
@@ -829,12 +829,12 @@ function Options:DrawFellowship(scroll, profile, container, group)
     AddCheck(scroll, "Show characters that guildmates and friends share (only those on my realm or a connected realm)", am.showShared,
         function(v) am.showShared = v; refresh() end, 520)
     AddLabel(scroll, "Sharing and shared icons are off by default, so nobody's map fills up with icons. Positions are only known outdoors.")
-    AddCheck(scroll, "Live view: show the character I'm playing on the world map, updated as I move", am.live ~= false,
-        function(v) am.live = v; FellowshipSync.AltMap:UpdateLive(true) end, 520)
+    AddCheck(scroll, "Live view: show the character I'm playing on the world map, updated as I move (off by default)", am.live == true,
+        function(v) am.live = v; FellowshipSync.AltMap:UpdateLive(true); FellowshipSync.AltMap:DrawTrail() end, 520)
     AddCheck(scroll, "Show coordinates under the world map (mine and the cursor's)", am.coords ~= false,
         function(v) am.coords = v; FellowshipSync.AltMap:UpdateCoords() end, 520)
-    AddCheck(scroll, "Draw a trail of where I've been this session (cleared when I log out)", am.trail,
-        function(v) am.trail = v; if not v then FellowshipSync.AltMap:ClearTrail() end end, 520)
+    AddCheck(scroll, "Live view: draw a trail behind me of where I've been this session (cleared when I log out)", am.trail ~= false,
+        function(v) am.trail = v; FellowshipSync.AltMap:DrawTrail() end, 520)
     AddCheck(scroll, "Share where I am right now with my guild and friends (live, every 15 seconds while I move)", am.shareLive,
         function(v) am.shareLive = v; FellowshipSync.AltMap:ShareLiveTick() end, 520)
     AddCheck(scroll, "Show guildmates and friends who share where they are right now (my realm or a connected realm)", am.showLive,

@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.12.1"
+local FALLBACK_VERSION = "3.12.2"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -392,7 +392,7 @@ local defaults = {
                    fallen = true, levels = false, bounty = true },
         -- Deathmap: skulls on the world map. scope: "solo" | "guild" | "network"
         -- Alt Map: your other characters on the world map. Sharing and seeing shared ones: off by default.
-        altMap = { mine = true, share = false, showShared = false, live = true, coords = true, trail = false, shareLive = false, showLive = false },
+        altMap = { mine = true, share = false, showShared = false, live = false, coords = true, trail = true, shareLive = false, showLive = false },
         deathmap = { worldMap = true, scope = "guild", size = 14, max = 400, days = 0, mode = "skulls", hotGrid = "medium",
                      hcOnly = false, highlightMine = true },
         privacy = {
@@ -780,12 +780,14 @@ function FellowshipSync:HandleSlash(input)
         self.Progress:ToggleMini()
     elseif cmd == "setup" then
         self.Setup:Show()
+    elseif cmd == "altmap" then
+        self.AltMap:PrintCheck()
     elseif cmd == "minimap" then
         local mm = self.db.profile.minimap
         mm.hide = not mm.hide
         self.Extras:UpdateMinimapButton()
     else
-        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync debug, /fsync perf, /fsync minimap")
+        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync debug, /fsync perf, /fsync minimap, /fsync altmap")
     end
 end
 

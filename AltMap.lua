@@ -29,7 +29,7 @@ function AltMap:Enable()
     if not WorldMapFrame then return end
     WorldMapFrame:HookScript("OnShow", function() self:Refresh() end)
     if WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", function() self:Refresh() end) end
-    if WorldMapFrame.OnCanvasScaleChanged then hooksecurefunc(WorldMapFrame, "OnCanvasScaleChanged", function() self:Rescale(); self:UpdateLive(true) end) end
+    if WorldMapFrame.OnCanvasScaleChanged then hooksecurefunc(WorldMapFrame, "OnCanvasScaleChanged", function() self:Rescale(); self:UpdateLive(true); self:DrawTrail() end) end
     WorldMapFrame:HookScript("OnHide", function() self:StopLive() end)
     self:StartTrail()
     FS:ScheduleRepeatingTimer(function() self:ShareLiveTick() end, LIVE_SHARE_EVERY)
@@ -66,25 +66,55 @@ local function ValidPos(p)
         and p.x > 0 and p.x < 1 and p.y > 0 and p.y < 1
 end
 
+-- One identity per character, whatever spelling its key has: "Kima-Test Realm",
+-- "Kima Stormborn-Test Realm" and "Kima-TestRealm" are the same character.
+function AltMap.Identity(key, cls)
+    key = tostring(key or "")
+    local first = key:match("^([^%s%-]+)") or key
+    return first:lower() .. "|" .. AltMap.RealmOf(key) .. "|" .. tostring(cls or "")
+end
+
+function AltMap:MyIdentity()
+    local _, cls = UnitClass("player")
+    return AltMap.Identity(FS:GetPlayerKey(), cls)
+end
+
+-- Keeps only the newest position per character.
+local function AddNewest(list, index, id, item)
+    local i = index[id]
+    if not i then
+        table.insert(list, item)
+        index[id] = #list
+    elseif (tonumber(item.pos.t) or 0) > (tonumber(list[i].pos.t) or 0) then
+        list[i] = item
+    end
+end
+
 function AltMap:Markers()
     local out = {}
     if not FS.db then return out end
     local set = Settings()
-    local me = FS:GetPlayerKey()
+    local me, myId = FS:GetPlayerKey(), self:MyIdentity()
     local chars = FS.db.global.characters
+    local index = {}
     if set.mine ~= false then
         for name, rec in pairs(chars) do
-            if rec.isMyChar and name ~= me and (rec.game == nil or rec.game == FS.GAME) and ValidPos(rec.pos) then
-                table.insert(out, { rec = rec, pos = rec.pos, mine = true })
+            if rec.isMyChar and (rec.game == nil or rec.game == FS.GAME) and ValidPos(rec.pos) then
+                local id = AltMap.Identity(name, rec.cls)
+                -- the character you're playing never has a parked icon
+                if name ~= me and id ~= myId then
+                    AddNewest(out, index, id, { rec = rec, pos = rec.pos, mine = true, id = id })
+                end
             end
         end
     end
     if set.showShared then
-        local shared = {}
+        local shared, sIndex = {}, {}
         for name, rec in pairs(chars) do
             if not rec.isMyChar and ValidPos(rec.pos) and time() - (tonumber(rec.pos.t) or 0) < SHARED_MAX_AGE
                 and (rec.isMock or self:SameRealm(name)) then
-                table.insert(shared, { rec = rec, pos = rec.pos })
+                local id = AltMap.Identity(name, rec.cls)
+                if not index[id] and id ~= myId then AddNewest(shared, sIndex, id, { rec = rec, pos = rec.pos, id = id }) end
             end
         end
         table.sort(shared, function(a, b) return (a.pos.t or 0) > (b.pos.t or 0) end)
@@ -111,8 +141,8 @@ local function PinTooltip(pin)
     GameTooltip:Show()
 end
 
-function AltMap:GetPin(i, parent)
-    local pin = self.pins[i]
+function AltMap:GetPin(id, parent)
+    local pin = self.pins[id]
     if not pin then
         pin = CreateFrame("Button", nil, parent)
         pin.ring = pin:CreateTexture(nil, "BACKGROUND")
@@ -124,7 +154,7 @@ function AltMap:GetPin(i, parent)
         pin:SetScript("OnEnter", PinTooltip)
         pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
         pin:SetScript("OnClick", function(p) if p.item and FS.Nav then FS.Nav:Character(p.item.rec.fullName) end end)
-        self.pins[i] = pin
+        self.pins[id] = pin
     end
     if pin:GetParent() ~= parent then pin:SetParent(parent) end
     return pin
@@ -146,7 +176,10 @@ function AltMap:Style(pin, item)
 end
 
 function AltMap:HideAll()
-    for _, pin in ipairs(self.pins or {}) do pin:Hide() end
+    for _, pin in pairs(self.pins or {}) do
+        if self.hbd and self.hbd.RemoveWorldMapIcon then self.hbd:RemoveWorldMapIcon(self, pin) end
+        pin:Hide()
+    end
 end
 
 function AltMap:Refresh()
@@ -154,12 +187,12 @@ function AltMap:Refresh()
     self.realms = nil
     self:StartLive()
     if self.hbd then
-        self.hbd:RemoveAllWorldMapIcons(self)
         self:HideAll()
+        self.hbd:RemoveAllWorldMapIcons(self)
         -- shown on the zone map and on the continent map around it
         local flag = HBD_PINS_WORLDMAP_SHOW_CONTINENT or HBD_PINS_WORLDMAP_SHOW_HIDE or 0
-        for i, item in ipairs(self:Markers()) do
-            local pin = self:GetPin(i, UIParent)
+        for _, item in ipairs(self:Markers()) do
+            local pin = self:GetPin(item.id, UIParent)
             pin.item = item
             self:Style(pin, item)
             self.hbd:AddWorldMapIconMap(self, pin, item.pos.map, item.pos.x, item.pos.y, flag)
@@ -178,7 +211,7 @@ function AltMap:Refresh()
     for _, item in ipairs(self:Markers()) do
         if item.pos.map == mapID then
             n = n + 1
-            local pin = self:GetPin(n, canvas)
+            local pin = self:GetPin(item.id, canvas)
             pin.item = item
             self:Style(pin, item)
             pin:SetFrameLevel(level)
@@ -194,21 +227,21 @@ function AltMap:Rescale()
     if self.hbd then return end
     local scale = (WorldMapFrame and WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1
     if not scale or scale <= 0 then scale = 1 end
-    for _, pin in ipairs(self.pins or {}) do pin:SetSize(SIZE / scale, SIZE / scale) end
+    for _, pin in pairs(self.pins or {}) do pin:SetSize(SIZE / scale, SIZE / scale) end
 end
 
 ---------------------------------------------------------------------------
 -- Live view: the character you are playing right now, updated while the map
 -- is open. Only on your own map - never sent to anyone.
--- Also: a coordinates bar under the map, and (opt-in) a trail of where
--- you've been this session.
+-- Off by default. With it: a trail behind you, and a coordinates bar.
 ---------------------------------------------------------------------------
 
 local LIVE_SIZE = 24
 local LIVE_EVERY = 0.2        -- seconds between live updates while the map is open
-local TRAIL_EVERY = 2         -- seconds between trail checks
-local TRAIL_STEP = 0.004      -- minimum distance (map units) between trail dots
-local TRAIL_MAX = 400
+local TRAIL_EVERY = 0.5       -- seconds between trail checks
+local TRAIL_STEP = 0.0015     -- minimum distance (map units) between trail points
+local TRAIL_JUMP = 0.08       -- a bigger jump than this starts a new piece of line (hearth, portal)
+local TRAIL_MAX = 2000
 
 local function Ok(v) return v ~= nil and not (issecretvalue and issecretvalue(v)) end
 
@@ -316,6 +349,7 @@ function AltMap:StartLive()
     self:UpdateLive(true)
     self:UpdateCoords()
     self:DrawPeers()
+    self:DrawTrail()
 end
 
 function AltMap:StopLive()
@@ -334,7 +368,7 @@ function AltMap:UpdateLive(force)
     if not FS.db then return end
     local set = Settings()
     self.liveRef = self.liveRef or {}
-    if set.live == false then return self:HideLive() end
+    if set.live ~= true then return self:HideLive() end
     local map, x, y = self:PlayerPos()
     if not map then return self:HideLive() end
     local last = self.live
@@ -402,8 +436,8 @@ function AltMap:UpdateCoords()
 end
 
 ---------------------------------------------------------------------------
--- Session trail (opt-in): small dots where you've been since you logged in.
--- Kept in memory only; gone when you log out.
+-- Trail (part of the live view): a continuous line behind you showing where
+-- you've walked, ridden and flown since you logged in. Kept in memory only.
 ---------------------------------------------------------------------------
 
 function AltMap:StartTrail()
@@ -418,49 +452,98 @@ function AltMap:StartTrail()
     end)
 end
 
+local function TrailOn()
+    local set = FS.db and Settings()
+    return set and set.live == true and set.trail ~= false
+end
+AltMap.TrailOn = TrailOn
+
 function AltMap:RecordTrail()
-    if not FS.db or not Settings().trail then return end
+    if not TrailOn() then return end
     local map, x, y = self:PlayerPos()
-    if not map then return end
+    if not map then self.trailBreak = true return end -- indoors: the line continues from where you come out
     local last = self.trail[#self.trail]
     if last and last.map == map and math.abs(last.x - x) < TRAIL_STEP and math.abs(last.y - y) < TRAIL_STEP then return end
+    -- new map, a long jump (hearth, portal, flight path loading) or back from indoors: start a new piece of line
+    local gap = self.trailBreak or not last or last.map ~= map or math.abs(last.x - x) > TRAIL_JUMP or math.abs(last.y - y) > TRAIL_JUMP
+    self.trailBreak = nil
     if #self.trail >= TRAIL_MAX then
-        local old = table.remove(self.trail, 1)
-        if old.dot then
-            if self.hbd and self.hbd.RemoveWorldMapIcon then self.hbd:RemoveWorldMapIcon(self.trailRef, old.dot) end
-            old.dot:Hide()
-            self.spareDots = self.spareDots or {}
-            table.insert(self.spareDots, old.dot)
-        end
+        table.remove(self.trail, 1)
+        if self.trail[1] then self.trail[1].gap = true end
+        self.trailDirty = true
     end
-    local point = { map = map, x = x, y = y }
-    table.insert(self.trail, point)
-    self:DrawDot(point)
+    table.insert(self.trail, { map = map, x = x, y = y, gap = gap })
+    if WorldMapFrame and WorldMapFrame:IsShown() then
+        if self.trailDirty then self:DrawTrail() else self:DrawTrailSegment(#self.trail) end
+    end
 end
 
-function AltMap:DrawDot(point)
-    if not self.hbd then return end  -- the trail needs HereBeDragons (it ships with the addon)
-    self.trailRef = self.trailRef or {}
-    local dot = point.dot
-    if not dot then
-        dot = self.spareDots and table.remove(self.spareDots)
-        if not dot then
-            dot = CreateFrame("Frame", nil, UIParent)
-            dot:SetSize(6, 6)
-            dot.tex = dot:CreateTexture(nil, "ARTWORK")
-            dot.tex:SetAllPoints()
-            dot.tex:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
-        end
-        point.dot = dot
+-- The line layer sits on the map canvas, so it zooms and pans with the map.
+function AltMap:TrailLayer()
+    local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
+    if not canvas then return nil end
+    if not self.trailLayer then
+        self.trailLayer = CreateFrame("Frame", nil, canvas)
+        self.trailLayer:SetAllPoints(canvas)
+        self.trailLines = {}
     end
-    dot.tex:SetVertexColor(0.3, 1, 0.4, 0.7)
-    self.hbd:AddWorldMapIconMap(self.trailRef, dot, point.map, point.x, point.y, HBD_PINS_WORLDMAP_SHOW_PARENT or 0)
+    self.trailLayer:SetFrameLevel((canvas:GetFrameLevel() or 1) + 2050)
+    return self.trailLayer, canvas
+end
+
+-- A trail point on the map you're looking at (zone, continent, world).
+function AltMap:OnViewed(p, viewed)
+    if p.map == viewed then return p.x, p.y end
+    if not self.hbdCore then self.hbdCore = LibStub("HereBeDragons-2.0", true) or false end
+    if not self.hbdCore or not self.hbdCore.TranslateZoneCoordinates then return nil end
+    local x, y = self.hbdCore:TranslateZoneCoordinates(p.x, p.y, p.map, viewed, true)
+    if x and y and x > -0.2 and x < 1.2 and y > -0.2 and y < 1.2 then return x, y end
+end
+
+function AltMap:DrawTrailSegment(i, layer, canvas, viewed, w, h, thick)
+    if not layer then
+        layer, canvas = self:TrailLayer()
+        if not layer then return end
+        viewed = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+        w, h = canvas:GetWidth(), canvas:GetHeight()
+        local scale = (WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1
+        thick = 3 / ((scale and scale > 0) and scale or 1)
+    end
+    local a, b = self.trail[i - 1], self.trail[i]
+    if not (a and b) or b.gap then return end
+    local x1, y1 = self:OnViewed(a, viewed)
+    local x2, y2 = self:OnViewed(b, viewed)
+    if not (x1 and x2) then return end
+    self.trailUsed = (self.trailUsed or 0) + 1
+    local line = self.trailLines[self.trailUsed]
+    if not line then
+        line = layer:CreateLine(nil, "OVERLAY")
+        line:SetColorTexture(0.3, 1, 0.4, 0.85)
+        self.trailLines[self.trailUsed] = line
+    end
+    line:SetThickness(thick)
+    line:SetStartPoint("TOPLEFT", canvas, x1 * w, -y1 * h)
+    line:SetEndPoint("TOPLEFT", canvas, x2 * w, -y2 * h)
+    line:Show()
+end
+
+function AltMap:DrawTrail()
+    self.trailDirty = nil
+    local layer, canvas = self:TrailLayer()
+    if not layer then return end
+    for _, line in ipairs(self.trailLines) do line:Hide() end
+    self.trailUsed = 0
+    if not TrailOn() or not WorldMapFrame:IsShown() then return end
+    local viewed = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    local w, h = canvas:GetWidth(), canvas:GetHeight()
+    local scale = (WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1
+    local thick = 3 / ((scale and scale > 0) and scale or 1)
+    for i = 2, #self.trail do self:DrawTrailSegment(i, layer, canvas, viewed, w, h, thick) end
 end
 
 function AltMap:ClearTrail()
-    for _, p in ipairs(self.trail or {}) do if p.dot then p.dot:Hide() end end
-    if self.hbd and self.trailRef then self.hbd:RemoveAllWorldMapIcons(self.trailRef) end
     self.trail = {}
+    self:DrawTrail()
 end
 
 ---------------------------------------------------------------------------
@@ -597,4 +680,20 @@ function AltMap:DrawPeers()
             end
         end
     end
+end
+
+-- /fsync altmap: what the Alt Map knows (for bug reports)
+function AltMap:PrintCheck()
+    local me = FS:GetPlayerKey()
+    FS:Print(string.format("Alt Map: you are %s (%s). Live view %s, trail %s, %d trail points.", me, self:MyIdentity(),
+        Settings().live and "on" or "off", TrailOn() and "on" or "off", #(self.trail or {})))
+    local n = 0
+    for name, rec in pairs(FS.db.global.characters) do
+        if rec.isMyChar and type(rec.pos) == "table" then
+            n = n + 1
+            FS:Print(string.format("  %s [%s] map %s at %.1f, %.1f (%s)%s", name, AltMap.Identity(name, rec.cls), tostring(rec.pos.map),
+                (tonumber(rec.pos.x) or 0) * 100, (tonumber(rec.pos.y) or 0) * 100, W.Plain(W.Ago(rec.pos.t)), rec.isMock and " sample" or ""))
+        end
+    end
+    FS:Print(string.format("%d of your characters have a position; %d icons are drawn.", n, #self:Markers()))
 end
