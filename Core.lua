@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.12.2"
+local FALLBACK_VERSION = "3.12.3"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -525,8 +525,68 @@ function FellowshipSync:GetPlayerName()
     return first or "Player"
 end
 
+-- Right after login the game can report an empty realm name (seen on Forever).
+-- Remember the last real one for this character, and never save under "Name-".
+function FellowshipSync:GetRealm()
+    local r = GetRealmName and GetRealmName()
+    if type(r) == "string" and r ~= "" then
+        self.knownRealm = r
+        if self.db and self.db.char and self.db.char.realm ~= r then self.db.char.realm = r end
+        return r
+    end
+    if self.knownRealm then return self.knownRealm end
+    local saved = self.db and self.db.char and self.db.char.realm
+    if type(saved) == "string" and saved ~= "" then return saved end
+    return nil
+end
+
 function FellowshipSync:GetPlayerKey()
-    return self:GetPlayerName() .. "-" .. (GetRealmName() or "Realm")
+    return self:GetPlayerName() .. "-" .. (self:GetRealm() or "")
+end
+
+-- 3.12.3: merge characters that were saved twice, once as "Name-" (no realm).
+-- Runs at every login (it's cheap); a "Name-" record is merged into the same
+-- character on a real realm, or renamed to your realm when it's you.
+local function MergeInto(dst, src)
+    for k, v in pairs(src) do
+        local d = dst[k]
+        if d == nil then dst[k] = v
+        elseif type(d) == "number" and type(v) == "number" and k ~= "lastUpdate" then dst[k] = math.max(d, v) end
+    end
+    local sp, dp = src.pos, dst.pos
+    if type(sp) == "table" and (type(dp) ~= "table" or (tonumber(sp.t) or 0) > (tonumber(dp.t) or 0)) then dst.pos = sp end
+    dst.lastUpdate = math.max(tonumber(dst.lastUpdate) or 0, tonumber(src.lastUpdate) or 0)
+end
+
+function FellowshipSync:MergeRealmlessCharacters()
+    local chars = self.db and self.db.global.characters
+    if not chars then return 0 end
+    local me, realm = self:GetPlayerName(), self:GetRealm()
+    local merged, blanks = 0, {}
+    for key in pairs(chars) do if key:sub(-1) == "-" then table.insert(blanks, key) end end
+    for _, key in ipairs(blanks) do
+        local rec, name = chars[key], key:sub(1, -2)
+        local twin
+        for other, o in pairs(chars) do
+            if other ~= key and other:sub(1, #name + 1) == name .. "-" and other:sub(-1) ~= "-"
+                and (o.cls == rec.cls or not rec.cls) and (o.game == rec.game or not rec.game or not o.game) then
+                if not twin or (tonumber(o.lastUpdate) or 0) > (tonumber(chars[twin].lastUpdate) or 0) then twin = other end
+            end
+        end
+        if not twin and name == me and realm then
+            twin = name .. "-" .. realm
+            chars[twin] = chars[twin] or {}
+        end
+        if twin then
+            local dst = chars[twin]
+            MergeInto(dst, rec)
+            dst.fullName = twin
+            chars[key] = nil
+            merged = merged + 1
+        end
+    end
+    if merged > 0 and self.Touch then self:Touch() end
+    return merged
 end
 
 -- Every name the game may use for us in chat ("Kima", "Kima Stormborn", "Kima-Realm").

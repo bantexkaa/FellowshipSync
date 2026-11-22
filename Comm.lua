@@ -635,6 +635,7 @@ function Comm:HandleMessage(message, distribution, sender, bnetID)
 
     local name = Str(p.n, 80)
     if not name or name == "" then return end
+    if name:sub(-1) == "-" then return end -- sent without a realm by an older version; the proper copy follows
     local chars = FS.db.global.characters
     local existing = chars[name]
     if existing and existing.isMyChar and not existing.isMock then return end

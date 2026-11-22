@@ -164,6 +164,10 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.12.3"] = {
+        "Fixed an error at logout (\"bad argument to pairs\" in Tracker.lua) when another addon loads the settings library first.",
+        "Fixed characters being saved twice when the game reports no realm name right after login. Existing doubles are merged automatically, which also removes the extra icons on the Alt Map.",
+    },
     ["3.12.2"] = {
         "Alt Map: each of your characters now shows only once, at its last known place, and the character you're playing never has a parked icon.",
         "Live view is now off by default. Turn it on in Options > Basics or Options > Fellowship > Alt Map.",

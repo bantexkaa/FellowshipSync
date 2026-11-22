@@ -221,6 +221,11 @@ end
 ---------------------------------------------------------------------------
 
 function Tracker:Enable()
+    self:EnsureCharTables() -- remembers the defaults while they're still there
+    -- Save at logout while AceDB still has everything in place; PLAYER_LOGOUT is the fallback.
+    if FS.db and FS.db.RegisterCallback then
+        FS.db.RegisterCallback(self, "OnDatabaseShutdown", function() self:LogoutSnapshot() end)
+    end
     self.db = FS.db
     local events = {
         "PLAYER_ENTERING_WORLD", "PLAYER_DEAD", "PLAYER_REGEN_ENABLED", "PLAYER_EQUIPMENT_CHANGED",
@@ -275,9 +280,12 @@ local function Restore(target, defaults)
         end
     end
 end
+-- AceDB drops its defaults at logout (before or after us, depending on which
+-- addon loaded the library first), so we keep our own reference to them.
 function Tracker:EnsureCharTables()
     local c = self.db and self.db.char
-    local d = FS.db and FS.db.defaults and FS.db.defaults.char
+    if FS.db and FS.db.defaults and FS.db.defaults.char then self.charDefaults = FS.db.defaults.char end
+    local d = self.charDefaults
     if c and d then Restore(c, d) end
 end
 
@@ -623,6 +631,15 @@ function Tracker:Snapshot()
     if not self.legacyEarned or time() - (self.legacyScanAt or 0) >= 60 or (self.legacyTotal or 0) == 0 then self:ScanLegacy() end
     if not self.professions then self:ScanProfessions() end
 
+    -- No realm name yet (just logged in): try again shortly instead of saving under "Name-".
+    if not FS:GetRealm() then
+        if not self.realmRetry then self.realmRetry = FS:ScheduleTimer(function() self.realmRetry = nil; self:Snapshot() end, 3) end
+        return
+    end
+    if not self.realmlessChecked then
+        self.realmlessChecked = true
+        FS:MergeRealmlessCharacters()
+    end
     local key = FS:GetPlayerKey()
     local chars = self.db.global.characters
     local rec = chars[key] or {}
@@ -696,7 +713,7 @@ function Tracker:Snapshot()
     local session = time() - (tonumber(c.sessionStart) or time())
     r.longestSession = math.max(tonumber(r.longestSession) or 0, session)
     r.killsSession = math.max(tonumber(r.killsSession) or 0, (tonumber(st.kills) or 0) - (self.sessionKills or tonumber(st.kills) or 0))
-    for _, d in pairs(c.daily) do
+    for _, d in pairs(c.daily or {}) do
         r.levelsDay = math.max(tonumber(r.levelsDay) or 0, d.levels or 0)
         r.goldDay = math.max(tonumber(r.goldDay) or 0, d.gold or 0)
     end
@@ -1656,7 +1673,11 @@ function Tracker:PLAYER_EQUIPMENT_CHANGED()
     self.gearTimer = FS:ScheduleTimer(function() self.gearTimer = nil; self:Snapshot(); FS:RefreshUIIfShown() end, 2)
 end
 
-function Tracker:PLAYER_LOGOUT()
+function Tracker:PLAYER_LOGOUT() self:LogoutSnapshot() end
+
+function Tracker:LogoutSnapshot()
+    if self.loggedOut then return end
+    self.loggedOut = true
     if self.afkSince then
         self:Add("afk", math.floor((GetTime() - self.afkSince) / 60))
         self.afkSince = nil
