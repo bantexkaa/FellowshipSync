@@ -164,6 +164,9 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.12.4"] = {
+        "Fixed a false \"AceSerializer-3.0 is missing\" message right after login. Nothing was missing: the first sync now simply waits until your character has loaded.",
+    },
     ["3.12.3"] = {
         "Fixed an error at logout (\"bad argument to pairs\" in Tracker.lua) when another addon loads the settings library first.",
         "Fixed characters being saved twice when the game reports no realm name right after login. Existing doubles are merged automatically, which also removes the extra icons on the Alt Map.",

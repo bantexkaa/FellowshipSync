@@ -449,11 +449,11 @@ end
 -- Encoded packets for this round: the character you play, then your alts if due.
 function Comm:BuildRound(full, forceAlts)
     local rec = FS.Tracker:Snapshot()
-    if not rec then return nil end
+    if not rec then return nil, "wait" end -- just logged in: your character isn't saved yet
     local texts = {}
     self.seq = self.seq + 1
     local text = Encode(self:BuildPacket(rec, full))
-    if not text then return nil end
+    if not text then return nil, "serializer" end
     table.insert(texts, text)
     local alts = self:AltRecords(forceAlts or full)
     for _, alt in ipairs(alts) do
@@ -497,7 +497,17 @@ function Comm:BroadcastStats(manual)
     end
     local texts, rec, altCount = self:BuildRound(self.sendFullList, firstOfSession or manual)
     if not texts then
-        FS:Print("|cffff5555AceSerializer-3.0 is missing.|r Check Libs\\Ace3 and the .toc file.")
+        if rec == "wait" then
+            -- The game hasn't told us the realm yet; try again in a few seconds.
+            self.pending = true
+            if firstOfSession then self.askedThisSession = nil end
+            if manual then FS:Print("Your character is still loading. Syncing in a few seconds.") end
+            if not self.waitTimer then
+                self.waitTimer = FS:ScheduleTimer(function() self.waitTimer = nil; self:BroadcastStats(manual) end, 5)
+            end
+        else
+            FS:Print("|cffff5555AceSerializer-3.0 is missing.|r Check Libs\\Ace3 and the .toc file.")
+        end
         return
     end
     self.pending = false
