@@ -44,6 +44,7 @@ UI_Profiles.lua
 UI_FactionWar.lua
 UI_Chronicle.lua
 UI_Fellowship.lua
+UI_People.lua
 UI_Records.lua
 UI_Progress.lua
 UI_Guild.lua
@@ -56,6 +57,7 @@ Notify.lua
 Fellowship.lua
 Deathmap.lua
 AltMap.lua
+People.lua
 Games.lua
 Officer.lua
 UI_Setup.lua

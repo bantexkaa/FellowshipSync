@@ -9,7 +9,7 @@ local L = addonTable.L or {}
 
 for _, m in ipairs({ "UI", "W", "Tracker", "Comm", "Dashboard", "Inspector", "Deathlog", "Combat",
                      "Misc", "Profiles", "FactionWar", "Chronicle", "Options", "Extras", "Notify",
-                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress", "Diag", "AltMap" }) do
+                     "Fellowship", "Deathmap", "FellowshipUI", "Records", "Games", "Setup", "Style", "Officer", "GuildUI", "Share", "Progress", "Diag", "AltMap", "People" }) do
     FellowshipSync[m] = FellowshipSync[m] or {}
 end
 
@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.12.4"
+local FALLBACK_VERSION = "3.13.0"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -318,6 +318,7 @@ local defaults = {
         networkKey = "FellowshipForever2026",
         dbVersion = 0,
         characters = {},
+        people = {},                   -- People I've Met (this computer only, never synced)
         events = {},
         bets = {},          -- this account's wagers: { w = wagerId, pick = charKey, amt = marks, t = time }
         wagerResults = {},  -- wagerId -> { winner = charKey, at = time }
@@ -392,6 +393,7 @@ local defaults = {
                    fallen = true, levels = false, bounty = true },
         -- Deathmap: skulls on the world map. scope: "solo" | "guild" | "network"
         -- Alt Map: your other characters on the world map. Sharing and seeing shared ones: off by default.
+        people = { enabled = true, seen = true, days = 30, tooltip = true },
         altMap = { mine = true, share = false, showShared = false, live = false, coords = true, trail = true, shareLive = false, showLive = false },
         deathmap = { worldMap = true, scope = "guild", size = 14, max = 400, days = 0, mode = "skulls", hotGrid = "medium",
                      hcOnly = false, highlightMine = true },
@@ -477,6 +479,7 @@ function FellowshipSync:OnEnable()
     if self.Deathmap.Enable then self.Deathmap:Enable() end
     if self.AltMap.Enable then self.AltMap:Enable() end
     self.Notify:QuietChatOnce()
+    self.People:Enable()
     if self.db.profile.notify.announce then self.Notify:WatchChat() end
     if self.Officer.Enable then self.Officer:Enable() end
     if self.Progress.Enable then self.Progress:Enable() end
@@ -810,7 +813,12 @@ end
 ---------------------------------------------------------------------------
 
 function FellowshipSync:HandleSlash(input)
-    local cmd = strtrim(input or ""):lower()
+    local raw = strtrim(input or "")
+    local cmd = raw:lower()
+    if cmd == "remember" or cmd:sub(1, 9) == "remember " then
+        self.People:RememberCurrent(strtrim(raw:sub(10)))
+        return
+    end
     if cmd == "" or cmd == "show" then
         self:ToggleUI()
     elseif cmd == "sync" then
@@ -847,7 +855,7 @@ function FellowshipSync:HandleSlash(input)
         mm.hide = not mm.hide
         self.Extras:UpdateMinimapButton()
     else
-        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync debug, /fsync perf, /fsync minimap, /fsync altmap")
+        self:Print("Commands: /fsync, /fsync sync, /fsync test, /fsync clearmock, /fsync wipe, /fsync stats, /fsync legacy, /fsync game, /fsync setup, /fsync session, /fsync mini, /fsync debug, /fsync perf, /fsync minimap, /fsync altmap, /fsync remember [note]")
     end
 end
 
@@ -911,3 +919,5 @@ end
 BINDING_HEADER_FELLOWSHIPSYNC = "FellowshipSync"
 BINDING_NAME_FELLOWSHIPSYNC_TOGGLE = "Open / close FellowshipSync"
 function FellowshipSync_Toggle() FellowshipSync:ToggleUI() end
+BINDING_NAME_FELLOWSHIPSYNC_REMEMBER = "Remember this player (target or mouseover)"
+function FellowshipSync_Remember() FellowshipSync.People:RememberCurrent() end

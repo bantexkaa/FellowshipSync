@@ -133,6 +133,15 @@ for k, v in pairs({ ["Last played here %s"] = "Jugado aquí por última vez %s",
     ["Click to open their profile."] = "Haz clic para abrir su perfil.", ["Alt Map"] = "Mapa de alters" }) do ES[k] = v end
 for k, v in pairs({ ["You are here"] = "Du bist hier", ["You"] = "Du", ["Cursor"] = "Mauszeiger",
     ["Playing for %s this session"] = "In dieser Sitzung seit %s im Spiel", ["Click to open your profile."] = "Klicken, um dein Profil zu öffnen.", ["Live"] = "Live", ["Updated %s"] = "Aktualisiert %s" }) do DE[k] = v end
+for k, v in pairs({ ["People I've Met"] = "Leute, die ich getroffen habe", ["People"] = "Leute", ["Keep"] = "Behalten", ["Stop keeping"] = "Nicht mehr behalten",
+    ["Forget"] = "Vergessen", ["Crossed paths"] = "Begegnet", ["Grouped"] = "Gruppiert", ["Traded"] = "Gehandelt", ["Whispered"] = "Geflüstert",
+    ["Killed you"] = "Hat dich getötet", ["Everyone"] = "Alle", ["Kept"] = "Behalten", ["Enemies"] = "Feinde", ["Enemy"] = "Feind" }) do DE[k] = v end
+for k, v in pairs({ ["People I've Met"] = "Mes rencontres", ["People"] = "Rencontres", ["Keep"] = "Garder", ["Stop keeping"] = "Ne plus garder",
+    ["Forget"] = "Oublier", ["Crossed paths"] = "Croisé", ["Grouped"] = "Groupé", ["Traded"] = "Échangé", ["Whispered"] = "Chuchoté",
+    ["Killed you"] = "Vous a tué", ["Everyone"] = "Tout le monde", ["Kept"] = "Gardés", ["Enemies"] = "Ennemis", ["Enemy"] = "Ennemi" }) do FR[k] = v end
+for k, v in pairs({ ["People I've Met"] = "Gente que he conocido", ["People"] = "Gente", ["Keep"] = "Guardar", ["Stop keeping"] = "Dejar de guardar",
+    ["Forget"] = "Olvidar", ["Crossed paths"] = "Cruzado", ["Grouped"] = "En grupo", ["Traded"] = "Comerciado", ["Whispered"] = "Susurrado",
+    ["Killed you"] = "Te mató", ["Everyone"] = "Todos", ["Kept"] = "Guardados", ["Enemies"] = "Enemigos", ["Enemy"] = "Enemigo" }) do ES[k] = v end
 for k, v in pairs({ ["You are here"] = "Vous êtes ici", ["You"] = "Vous", ["Cursor"] = "Curseur",
     ["Playing for %s this session"] = "En jeu depuis %s cette session", ["Click to open your profile."] = "Cliquez pour ouvrir votre profil.", ["Live"] = "En direct", ["Updated %s"] = "Mis à jour %s" }) do FR[k] = v end
 for k, v in pairs({ ["You are here"] = "Estás aquí", ["You"] = "Tú", ["Cursor"] = "Cursor",

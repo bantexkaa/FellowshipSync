@@ -6,6 +6,7 @@ local F = FS.Fellowship
 
 local TABS = {
     { id = "bonds",    label = "Bonds" },
+    { id = "people",   label = "People" },
     { id = "bounties", label = "Guild Bounties" },
     { id = "book",     label = "Book of Deeds" },
     { id = "deathmap", label = "Deathmap" },
@@ -42,6 +43,7 @@ function View:Build(parent)
     self:BuildWagers(f)
     self:BuildRivals(f)
     self:BuildGames(f)
+    if self.BuildPeople then self:BuildPeople(f) end
 end
 
 local function Pane(self, id, parent)

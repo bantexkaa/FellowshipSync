@@ -2,4 +2,7 @@
 	<Binding name="FELLOWSHIPSYNC_TOGGLE" header="FELLOWSHIPSYNC" category="ADDONS">
 		FellowshipSync_Toggle()
 	</Binding>
+	<Binding name="FELLOWSHIPSYNC_REMEMBER" category="ADDONS">
+		FellowshipSync_Remember()
+	</Binding>
 </Bindings>

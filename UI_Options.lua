@@ -819,6 +819,25 @@ function Options:DrawFellowship(scroll, profile, container, group)
         for _, k in ipairs(kinds) do AddCheck(scroll, k[2], m[k[1]], function(v) m[k[1]] = v end, 300) end
         AddLabel(scroll, "Screenshots go to your World of Warcraft Screenshots folder. At most one every 10 seconds.")
     end
+    AddHeading(scroll, "People I've Met")
+    local pp = profile.people
+    local peopleRefresh = function() FellowshipSync.People:RefreshUI() end
+    AddCheck(scroll, "Keep a log of the players I group, trade and talk with (Fellowship > People)", pp.enabled ~= false,
+        function(v) pp.enabled = v; peopleRefresh() end, 520)
+    AddCheck(scroll, "Also log players I just cross paths with (target, hover or see nearby)", pp.seen ~= false,
+        function(v) pp.seen = v end, 520)
+    AddCheck(scroll, "Show \"Met 4 times, first in The Barrens\" in the game tooltip", pp.tooltip ~= false,
+        function(v) pp.tooltip = v end, 520)
+    AddChoice(scroll, "Forget people I haven't kept after", {
+        { 7, "7 days" }, { 14, "14 days" }, { 30, "30 days" }, { 60, "60 days" }, { 90, "90 days" }, { 365, "1 year" },
+    }, tonumber(pp.days) or 30, function(v) pp.days = v; FellowshipSync.People:Tidy(); peopleRefresh() end, 260)
+    AddLabel(scroll, "People you grouped, traded or talked with stay 3 times longer. People you keep (the Remember key binding, /fsync remember, or Keep on the People page) are never removed. This log stays on this computer and is never shared.")
+    AddButton(scroll, "Forget everyone I haven't kept", 260, function()
+        local data = FellowshipSync.People:Data()
+        for k, rec in pairs(data) do if type(rec) ~= "table" or not rec.ink then data[k] = nil end end
+        peopleRefresh()
+    end)
+
     AddHeading(scroll, "Alt Map")
     local am = profile.altMap
     local refresh = function() FellowshipSync.AltMap:Refresh() end

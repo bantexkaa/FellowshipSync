@@ -164,6 +164,13 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.13"] = {
+        "New: People I've Met (Fellowship > People). A log of the players you group, trade and whisper with, who killed you, and who you cross paths with, with level, guild and where you met.",
+        "Everyone is pencilled in and fades after 30 days (90 if you grouped, traded or talked). Keep someone and they stay forever, with a note.",
+        "Remember this player: a key binding (Key Bindings > AddOns), /fsync remember <note>, or put /fsync remember in a macro.",
+        "The game tooltip shows \"Met 4 times, first 12 days ago in The Barrens\" and your note.",
+        "\"FS\" next to a name means they also use FellowshipSync in your network. This log stays on your computer and is never shared.",
+    },
     ["3.12.4"] = {
         "Fixed a false \"AceSerializer-3.0 is missing\" message right after login. Nothing was missing: the first sync now simply waits until your character has loaded.",
     },
