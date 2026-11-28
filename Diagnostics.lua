@@ -114,6 +114,11 @@ function Diag:Report()
     add("Character: level %s %s | Guild: %s | Rank: %s (%s) | Officer powers: %s", tostring(me.level), tostring(me.cls),
         tostring(guild or "none"), tostring(rankName or "-"), tostring(rankIndex or "-"),
         YesNo(FS.Officer.AmIOfficer and FS.Officer:AmIOfficer()))
+    local norm = GetNormalizedRealmName and GetNormalizedRealmName()
+    local _, fullRealm = UnitFullName and UnitFullName("player")
+    add("Realm: game says \"%s\" | normalized \"%s\" | full name \"%s\" | using \"%s\" | saved as %s | last saved %s",
+        tostring(GetRealmName and GetRealmName()), tostring(norm), tostring(fullRealm), tostring(FS:GetRealm()),
+        tostring(FS:GetPlayerKey()), me.lastUpdate and date("%H:%M:%S", me.lastUpdate) or "never")
     local libs = {}
     for _, lib in ipairs({ "AceAddon-3.0", "AceDB-3.0", "AceComm-3.0", "AceSerializer-3.0", "AceGUI-3.0", "LibDeflate",
                            "LibDataBroker-1.1", "LibDBIcon-1.0", "HereBeDragons-Pins-2.0", "LibSharedMedia-3.0" }) do

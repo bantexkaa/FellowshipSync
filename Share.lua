@@ -164,6 +164,9 @@ end
 ---------------------------------------------------------------------------
 
 FS.WHATS_NEW = {
+    ["3.13.1"] = {
+        "Fixed: on some servers the game reports no realm name for a long time, and since 3.12.3 your character's stats weren't saved while it did. They are again, and get tidied up automatically once the realm name shows up.",
+    },
     ["3.13"] = {
         "New: People I've Met (Fellowship > People). A log of the players you group, trade and whisper with, who killed you, and who you cross paths with, with level, guild and where you met.",
         "Everyone is pencilled in and fades after 30 days (90 if you grouped, traded or talked). Keep someone and they stay forever, with a note.",

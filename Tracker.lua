@@ -632,11 +632,17 @@ function Tracker:Snapshot()
     if not self.professions then self:ScanProfessions() end
 
     -- No realm name yet (just logged in): try again shortly instead of saving under "Name-".
-    if not FS:GetRealm() then
-        if not self.realmRetry then self.realmRetry = FS:ScheduleTimer(function() self.realmRetry = nil; self:Snapshot() end, 3) end
-        return
+    -- If the game keeps saying "no realm" (it can on some servers for a long time), save
+    -- anyway after a few tries; that entry is merged into the right one once the realm is known.
+    local realm = FS:GetRealm()
+    if not realm then
+        self.realmWaits = (self.realmWaits or 0) + 1
+        if self.realmWaits <= 3 then
+            if not self.realmRetry then self.realmRetry = FS:ScheduleTimer(function() self.realmRetry = nil; self:Snapshot() end, 3) end
+            return
+        end
     end
-    if not self.realmlessChecked then
+    if realm and not self.realmlessChecked then
         self.realmlessChecked = true
         FS:MergeRealmlessCharacters()
     end

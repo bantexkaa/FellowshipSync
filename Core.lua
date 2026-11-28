@@ -116,7 +116,7 @@ local DB_VERSION = 3
 FellowshipSync.COMM_PREFIX = "FSYNC_V1"
 -- The version comes from the .toc, where the release packager writes the tag (v3.6.2 -> 3.6.2).
 -- An unpackaged copy still says "@project-version@", so fall back to the number below.
-local FALLBACK_VERSION = "3.13.0"
+local FALLBACK_VERSION = "3.13.1"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     local v = get and get(addonName or "FellowshipSync", "Version")
@@ -540,6 +540,10 @@ function FellowshipSync:GetRealm()
     if self.knownRealm then return self.knownRealm end
     local saved = self.db and self.db.char and self.db.char.realm
     if type(saved) == "string" and saved ~= "" then return saved end
+    -- last resort: the short form without spaces ("ArgentDawn"); merged with the long form later
+    r = GetNormalizedRealmName and GetNormalizedRealmName()
+    if (type(r) ~= "string" or r == "") and UnitFullName then r = select(2, UnitFullName("player")) end
+    if type(r) == "string" and r ~= "" then return r end
     return nil
 end
 
@@ -566,7 +570,23 @@ function FellowshipSync:MergeRealmlessCharacters()
     if not chars then return 0 end
     local me, realm = self:GetPlayerName(), self:GetRealm()
     local merged, blanks = 0, {}
+    local function Short(r) return (r or ""):gsub("[%s%-']", ""):lower() end
     for key in pairs(chars) do if key:sub(-1) == "-" then table.insert(blanks, key) end end
+    -- "Name-ArgentDawn" next to "Name-Argent Dawn": the short one is merged into the long one
+    for key, rec in pairs(chars) do
+        local name, r = key:match("^(.-)%-([^%-]*)$")
+        if name and r ~= "" and not r:find(" ", 1, true) then
+            for other in pairs(chars) do
+                local n2, r2 = other:match("^(.-)%-([^%-]*)$")
+                if n2 == name and r2 ~= r and r2:find(" ", 1, true) and Short(r2) == Short(r) then
+                    MergeInto(chars[other], rec)
+                    chars[key] = nil
+                    merged = merged + 1
+                    break
+                end
+            end
+        end
+    end
     for _, key in ipairs(blanks) do
         local rec, name = chars[key], key:sub(1, -2)
         local twin
